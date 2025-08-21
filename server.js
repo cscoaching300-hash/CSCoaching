@@ -1,4 +1,6 @@
+/* server.js — Turso in prod, sqlite locally (optional) */
 require('dotenv').config();
+
 const express = require('express');
 const session = require('express-session');
 const helmet = require('helmet');
@@ -10,26 +12,19 @@ const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs');
 
-const app = express();  // ✅ only once!
-app.set('trust proxy', 1); // needed so secure cookies work behind Render/HTTPS
+const app = express();
+app.set('trust proxy', 1); // so secure cookies work behind Render/HTTPS
 
 const PORT = process.env.PORT || 3000;
 const ADMIN_KEY = process.env.ADMIN_KEY || 'changeme';
-const baseUrl = process.env.APP_BASE_URL || "http://localhost:3000";
-
+const baseUrl = (process.env.APP_BASE_URL || `http://localhost:${PORT}`).replace(/\/+$/,''); // no trailing slash
+const IS_PROD = String(process.env.NODE_ENV).toLowerCase() === 'production';
 
 /* ---------- Database: Turso in production, sqlite locally ---------- */
 const useTurso = !!process.env.TURSO_DATABASE_URL;
 
-let db;            // exposes run/get/all/serialize
-let DATA_DIR = null;
-
-// Small visible debug so you can confirm env vars are seen
-console.log('Startup env check:', {
-  TURSO_DATABASE_URL: process.env.TURSO_DATABASE_URL ? 'set' : 'missing',
-  TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN ? 'set' : 'missing',
-  APP_BASE_URL: APP_BASE
-});
+let db; // adapter exposing sqlite-like callbacks: run/get/all/serialize
+let DATA_DIR;
 
 if (useTurso) {
   const { createClient } = require('@libsql/client');
@@ -46,7 +41,7 @@ if (useTurso) {
     },
     get(sql, params = [], cb = () => {}) {
       client.execute({ sql, args: params })
-        .then(res => cb(null, res.rows?.[0] || null))
+        .then(res => cb(null, (res.rows && res.rows[0]) || null))
         .catch(err => cb(err));
     },
     all(sql, params = [], cb = () => {}) {
@@ -57,10 +52,12 @@ if (useTurso) {
     serialize(fn) { fn(); }
   };
 } else {
+  // Local development: sqlite on disk (optional)
   const sqlite3 = require('sqlite3').verbose();
   DATA_DIR = path.join(__dirname, 'data');
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  db = new sqlite3.Database(path.join(DATA_DIR, 'app.sqlite'));
+  const sqlite = new sqlite3.Database(path.join(DATA_DIR, 'app.sqlite'));
+  db = sqlite;
 }
 
 /* ---------- Security & middleware ---------- */
@@ -82,18 +79,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 /* ---------- Sessions ---------- */
-/* On Render free (no disk), we use MemoryStore. Locally you can use connect-sqlite3. */
-let sessionStore;
-if (!useTurso && DATA_DIR) {
-  try {
-    const SQLiteStore = require('connect-sqlite3')(session);
-    sessionStore = new SQLiteStore({ db: 'sessions.sqlite', dir: DATA_DIR });
-  } catch {
-    sessionStore = new session.MemoryStore();
-  }
-} else {
-  sessionStore = new session.MemoryStore();
-}
+/* On Render free (no disk), use in-memory sessions. */
+let sessionStore = new session.MemoryStore();
 
 app.use(session({
   name: 'csc_sid',
@@ -102,9 +89,35 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   rolling: true,
-  // If you want secure cookies on Render, set secure:true (we trust proxy above)
-  cookie: { httpOnly: true, sameSite: 'lax', secure: APP_BASE.startsWith('https'), maxAge: 1000*60*60*24*14 }
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: IS_PROD,              // secure cookies only over HTTPS in prod
+    maxAge: 1000 * 60 * 60 * 24 * 14
+  }
 }));
+
+/* ---------- Helpers: sqlite-like Promises ---------- */
+const pRun = (sql, params=[]) => new Promise((resolve,reject)=> db.run(sql, params, function(err){ err?reject(err):resolve(this); }));
+const pGet = (sql, params=[]) => new Promise((resolve,reject)=> db.get(sql, params, (err,row)=> err?reject(err):resolve(row)));
+const pAll = (sql, params=[]) => new Promise((resolve,reject)=> db.all(sql, params, (err,rows)=> err?reject(err):resolve(rows)));
+
+function requireAdmin(req,res,next){
+  const k=req.header('X-ADMIN-KEY');
+  if(!k || k!==ADMIN_KEY) return res.status(401).json({error:'ADMIN_ONLY'});
+  next();
+}
+function requireMember(req,res,next){
+  if(req.session && req.session.member) return next();
+  return res.status(401).json({error:'UNAUTHORIZED'});
+}
+async function getMemberByEmail(email){
+  return await pGet(`SELECT * FROM members WHERE lower(email)=lower(?)`, [email]);
+}
+async function createMember({name,email,credits=0}){
+  const res = await pRun(`INSERT INTO members (name,email,credits) VALUES (?,?,?)`, [name||null, email, credits]);
+  return await pGet(`SELECT * FROM members WHERE id=?`, [res.lastID]);
+}
 
 /* ---------- Tables (idempotent) ---------- */
 db.serialize(() => {
@@ -172,28 +185,15 @@ async function sendAdminEmail({ start_iso, end_iso, location, name, email }) {
   });
 }
 async function sendActivationEmail({ to, name, token }) {
-  const link = `${APP_BASE}/activate.html?token=${encodeURIComponent(token)}`;
+  const link = `${baseUrl}/activate.html?token=${encodeURIComponent(token)}`;
   const html = `<!doctype html><html><body style="font-family:Arial,Helvetica,sans-serif;background:#0f0f0f;color:#fff;padding:24px"><div style="max-width:560px;margin:0 auto;background:#101215;border:1px solid #1a1a1a;border-radius:12px;padding:20px"><h2 style="margin:0 0 12px">Welcome to CSCoaching</h2><p style="color:#cfcfcf">Hi ${name||to}, click below to set your password:</p><p style="margin:16px 0"><a href="${link}" style="background:#e02424;color:#fff;text-decoration:none;padding:10px 14px;border-radius:8px;display:inline-block">Activate your account</a></p><p style="color:#9a9a9a;font-size:12px">Or paste this link:<br>${link}</p></div></body></html>`;
   await transporter.sendMail({ from:`"CSCoaching" <${process.env.SMTP_USER}>`, to, subject:'Activate your CSCoaching account', html });
 }
 
-/* ---------- Helpers ---------- */
-function requireAdmin(req,res,next){ const k=req.header('X-ADMIN-KEY'); if(!k || k!==ADMIN_KEY) return res.status(401).json({error:'ADMIN_ONLY'}); next(); }
-function requireMember(req,res,next){ if(req.session && req.session.member) return next(); return res.status(401).json({error:'UNAUTHORIZED'}); }
-
-const pRun = (sql, params=[]) => new Promise((resolve,reject)=> db.run(sql, params, function(err){ err?reject(err):resolve(this); }));
-const pGet = (sql, params=[]) => new Promise((resolve,reject)=> db.get(sql, params, (err,row)=> err?reject(err):resolve(row)));
-const pAll = (sql, params=[]) => new Promise((resolve,reject)=> db.all(sql, params, (err,rows)=> err?reject(err):resolve(rows)));
-
-async function getMemberByEmail(email){ return await pGet(`SELECT * FROM members WHERE lower(email)=lower(?)`, [email]); }
-async function createMember({name,email,credits=0}){
-  const res = await pRun(`INSERT INTO members (name,email,credits) VALUES (?,?,?)`, [name||null, email, credits]);
-  return await pGet(`SELECT * FROM members WHERE id=?`, [res.lastID]);
-}
-
-/* ---------- Slot filter & API ---------- */
+/* ---------- Slot filter & public API ---------- */
 function withinCoachingWindow(slot){
-  const norm = s => (s||'').trim().toLowerCase(); const inRange=(h,a,b)=>h>=a && h<b;
+  const norm = s => (s||'').trim().toLowerCase();
+  const inRange=(h,a,b)=>h>=a && h<b;
   const d=new Date(slot.start_iso), dow=d.getDay(), h=d.getHours(), loc=norm(slot.location);
   if (dow===1 && inRange(h,17,21)) return !loc || loc.includes('scunthorpe');
   if (dow===2 && inRange(h,17,22)) return !loc || loc.includes('hull');
@@ -336,15 +336,13 @@ app.post('/api/member/bookings/:id/cancel', requireMember, async (req,res)=>{
 });
 
 /* ---------- Admin APIs ---------- */
-function requireAdminKey(req,res,next){ return requireAdmin(req,res,next); }
-
-app.get('/api/admin/members', requireAdminKey, async (req,res)=>{
+app.get('/api/admin/members', requireAdmin, async (req,res)=>{
   try{
     const rows = await pAll(`SELECT id,name,email,credits FROM members ORDER BY created_at DESC`, []);
     res.json({ ok:true, members: rows });
   }catch{ res.status(500).json({error:'DB_ERROR'}) }
 });
-app.post('/api/admin/members', requireAdminKey, async (req,res)=>{
+app.post('/api/admin/members', requireAdmin, async (req,res)=>{
   const { name, email, credits=0 } = req.body||{};
   if (!email) return res.status(400).json({error:'MISSING_EMAIL'});
   try{
@@ -357,7 +355,7 @@ app.post('/api/admin/members', requireAdminKey, async (req,res)=>{
     res.json({ ok:true, member_id: memberId, invite: token });
   }catch{ res.status(500).json({error:'DB_ERROR'}) }
 });
-app.patch('/api/admin/members/:id', requireAdminKey, async (req,res)=>{
+app.patch('/api/admin/members/:id', requireAdmin, async (req,res)=>{
   const { credits, name } = req.body||{};
   try{
     await pRun(`UPDATE members SET credits=COALESCE(?,credits), name=COALESCE(?,name) WHERE id=?`,
@@ -365,20 +363,19 @@ app.patch('/api/admin/members/:id', requireAdminKey, async (req,res)=>{
     res.json({ ok:true });
   }catch{ res.status(500).json({error:'DB_ERROR'}) }
 });
-app.delete('/api/admin/members/:id', requireAdminKey, async (req,res)=>{
+app.delete('/api/admin/members/:id', requireAdmin, async (req,res)=>{
   try{
     await pRun(`DELETE FROM members WHERE id=?`, [req.params.id]);
     res.json({ ok:true });
   }catch{ res.status(500).json({error:'DB_ERROR'}) }
 });
-
-app.get('/api/admin/slots', requireAdminKey, async (req,res)=>{
+app.get('/api/admin/slots', requireAdmin, async (req,res)=>{
   try{
     const rows = await pAll(`SELECT * FROM slots ORDER BY start_iso DESC`, []);
     res.json({ ok:true, slots: rows });
   }catch{ res.status(500).json({error:'DB_ERROR'}) }
 });
-app.post('/api/admin/slots', requireAdminKey, async (req,res)=>{
+app.post('/api/admin/slots', requireAdmin, async (req,res)=>{
   const { start_iso, location } = req.body||{};
   if (!start_iso) return res.status(400).json({error:'MISSING_START'});
   try{
@@ -387,7 +384,7 @@ app.post('/api/admin/slots', requireAdminKey, async (req,res)=>{
     res.json({ ok:true, id: ins.lastID });
   }catch{ res.status(500).json({error:'DB_ERROR'}) }
 });
-app.delete('/api/admin/slots/:id', requireAdminKey, async (req,res)=>{
+app.delete('/api/admin/slots/:id', requireAdmin, async (req,res)=>{
   try{
     await pRun(`DELETE FROM slots WHERE id=? AND is_booked=0`, [req.params.id]);
     res.json({ ok:true });
@@ -400,6 +397,4 @@ app.get('/admin', (_req,res)=> res.sendFile(path.join(__dirname, 'public', 'admi
 app.get('*', (_req,res)=> res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 /* ---------- Start ---------- */
-app.listen(PORT, ()=> console.log(`Server running on ${APP_BASE} (turso=${useTurso})`));
-
-
+app.listen(PORT, ()=> console.log(`Server running on ${baseUrl} (turso=${useTurso})`));
