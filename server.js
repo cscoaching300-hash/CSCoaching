@@ -1,5 +1,3 @@
-/* ---------- Start ---------- */
-app.listen(PORT, ()=> console.log(`Server running on ${APP_BASE} (turso=${useTurso})`));
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
@@ -11,24 +9,29 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs');
-const app = express();
+
+const app = express();  // ✅ only once!
 app.set('trust proxy', 1); // needed so secure cookies work behind Render/HTTPS
 
-
-const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_KEY = process.env.ADMIN_KEY || 'changeme';
 const baseUrl = process.env.APP_BASE_URL || "http://localhost:3000";
-;
+
 
 /* ---------- Database: Turso in production, sqlite locally ---------- */
 const useTurso = !!process.env.TURSO_DATABASE_URL;
 
-let db; // adapter exposing sqlite-like callbacks: run/get/all/serialize
-let DATA_DIR;
+let db;            // exposes run/get/all/serialize
+let DATA_DIR = null;
+
+// Small visible debug so you can confirm env vars are seen
+console.log('Startup env check:', {
+  TURSO_DATABASE_URL: process.env.TURSO_DATABASE_URL ? 'set' : 'missing',
+  TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN ? 'set' : 'missing',
+  APP_BASE_URL: APP_BASE
+});
 
 if (useTurso) {
-  // Turso / libSQL adapter
   const { createClient } = require('@libsql/client');
   const client = createClient({
     url: process.env.TURSO_DATABASE_URL,
@@ -54,12 +57,10 @@ if (useTurso) {
     serialize(fn) { fn(); }
   };
 } else {
-  // Local development: sqlite on disk (optional)
   const sqlite3 = require('sqlite3').verbose();
   DATA_DIR = path.join(__dirname, 'data');
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  const sqlite = new sqlite3.Database(path.join(DATA_DIR, 'app.sqlite'));
-  db = sqlite;
+  db = new sqlite3.Database(path.join(DATA_DIR, 'app.sqlite'));
 }
 
 /* ---------- Security & middleware ---------- */
@@ -81,10 +82,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 /* ---------- Sessions ---------- */
-/* On Render free (no disk), use in-memory sessions. Locally you can switch to SQLiteStore if you want. */
+/* On Render free (no disk), we use MemoryStore. Locally you can use connect-sqlite3. */
 let sessionStore;
-if (!useTurso) {
-  // local dev: can optionally persist sessions using sqlite
+if (!useTurso && DATA_DIR) {
   try {
     const SQLiteStore = require('connect-sqlite3')(session);
     sessionStore = new SQLiteStore({ db: 'sessions.sqlite', dir: DATA_DIR });
@@ -92,7 +92,6 @@ if (!useTurso) {
     sessionStore = new session.MemoryStore();
   }
 } else {
-  // Render free: MemoryStore only
   sessionStore = new session.MemoryStore();
 }
 
@@ -103,7 +102,8 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   rolling: true,
-  cookie: { httpOnly: true, sameSite: 'lax', secure: false, maxAge: 1000*60*60*24*14 }
+  // If you want secure cookies on Render, set secure:true (we trust proxy above)
+  cookie: { httpOnly: true, sameSite: 'lax', secure: APP_BASE.startsWith('https'), maxAge: 1000*60*60*24*14 }
 }));
 
 /* ---------- Tables (idempotent) ---------- */
@@ -181,7 +181,6 @@ async function sendActivationEmail({ to, name, token }) {
 function requireAdmin(req,res,next){ const k=req.header('X-ADMIN-KEY'); if(!k || k!==ADMIN_KEY) return res.status(401).json({error:'ADMIN_ONLY'}); next(); }
 function requireMember(req,res,next){ if(req.session && req.session.member) return next(); return res.status(401).json({error:'UNAUTHORIZED'}); }
 
-/* sqlite-like helpers that return Promises */
 const pRun = (sql, params=[]) => new Promise((resolve,reject)=> db.run(sql, params, function(err){ err?reject(err):resolve(this); }));
 const pGet = (sql, params=[]) => new Promise((resolve,reject)=> db.get(sql, params, (err,row)=> err?reject(err):resolve(row)));
 const pAll = (sql, params=[]) => new Promise((resolve,reject)=> db.all(sql, params, (err,rows)=> err?reject(err):resolve(rows)));
@@ -192,7 +191,7 @@ async function createMember({name,email,credits=0}){
   return await pGet(`SELECT * FROM members WHERE id=?`, [res.lastID]);
 }
 
-/* ---------- Slot filter & API (unchanged behavior) ---------- */
+/* ---------- Slot filter & API ---------- */
 function withinCoachingWindow(slot){
   const norm = s => (s||'').trim().toLowerCase(); const inRange=(h,a,b)=>h>=a && h<b;
   const d=new Date(slot.start_iso), dow=d.getDay(), h=d.getHours(), loc=norm(slot.location);
@@ -256,7 +255,7 @@ app.post('/api/book', async (req,res)=>{
   }catch(e){ console.error(e); res.status(500).json({error:'SERVER_ERROR'}); }
 });
 
-/* ---------- Auth & member APIs (same behavior) ---------- */
+/* ---------- Auth & member APIs ---------- */
 app.post('/api/auth/login', async (req,res)=>{
   const { email, password } = req.body||{};
   if (!email || !password) return res.status(400).json({error:'MISSING_FIELDS'});
@@ -336,7 +335,7 @@ app.post('/api/member/bookings/:id/cancel', requireMember, async (req,res)=>{
   }catch{ res.status(500).json({error:'DB_ERROR'}) }
 });
 
-/* ---------- Admin APIs (unchanged) ---------- */
+/* ---------- Admin APIs ---------- */
 function requireAdminKey(req,res,next){ return requireAdmin(req,res,next); }
 
 app.get('/api/admin/members', requireAdminKey, async (req,res)=>{
