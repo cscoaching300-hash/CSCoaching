@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CSCoaching</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="/js/site.js" defer></script>
+  <style>
+    body { margin:0; font-family: Inter, system-ui, sans-serif; background:#0b0b0b; color:#eee; }
+    .hero { max-width:1000px; margin:64px auto; text-align:center; padding:0 16px; }
+    .hero img { max-width:560px; width:90%; height:auto; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,.4); }
+    .hero h1 { margin:20px 0 10px; font-size:32px; }
+    .hero p { color:#bdbdbd; margin:0 0 24px; }
+    .cta { display:inline-block; padding:12px 18px; background:#e02424; color:#fff; border-radius:10px; text-decoration:none; font-weight:700; }
+    .cta:hover { filter:brightness(1.08); }
+    .cs-nav { background:#000; border-bottom:1px solid #1d1e22; }
+    .cs-nav-inner{ max-width:1100px; margin:0 auto; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; }
+    .cs-brand{ color:#fff; font-weight:700; letter-spacing:.5px; }
+    .cs-nav-links{ list-style:none; display:flex; gap:16px; margin:0; padding:0; }
+    .cs-nav-links a{ color:#e8e8e8; text-decoration:none; }
+    .cs-nav-links a:hover{ color:#fff; }
+  </style>
+</head>
+<body>
+  <!-- Shared Navigation -->
+  <nav class="cs-nav">
+    <div class="cs-nav-inner">
+      <div class="cs-brand">CSCoaching</div>
+      <ul class="cs-nav-links">
+        <li><a href="/">Home</a></li>
+        <li><a href="/book.html">Book a Session</a></li>
+        <li id="loginLink"><a href="/login.html">Member Login</a></li>
+        <li><a href="/dashboard.html" id="dashboardLink" style="display:none;">My Dashboard</a></li>
+        <li><a href="#" id="logoutLink" style="display:none;">Logout</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Simple hero -->
+  <div class="hero">
+    <img src="/logo.png" alt="CSCoaching">
+    <h1>Train. Strike. Repeat.</h1>
+    <p>Personalised coaching sessions in Scunthorpe, Hull & Shipley.</p>
+    <a class="cta" href="/book.html">Book a session</a>
+  </div>
+</body>
+</html>

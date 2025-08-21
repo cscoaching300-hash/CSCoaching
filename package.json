@@ -1,0 +1,25 @@
+{
+  "name": "coach-booking-site-pro-custom",
+  "version": "1.2.0",
+  "description": "Coaching booking site with member credits, email, admin, spam protection — customised hours/venues and colours.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.2",
+    "body-parser": "^1.20.2",
+    "connect-sqlite3": "^0.9.16",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.0",
+    "express-session": "^1.18.2",
+    "helmet": "^7.2.0",
+    "morgan": "^1.10.1",
+    "nodemailer": "^6.10.1",
+    "sqlite3": "^5.1.7",
+    "uuid": "^11.1.0"
+  }
+}

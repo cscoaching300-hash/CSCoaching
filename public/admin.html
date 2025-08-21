@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin | CSCoaching</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="cs-nav">
+    <div class="cs-nav-inner">
+      <div class="cs-brand">CSCoaching • Admin</div>
+      <ul class="cs-nav-links">
+        <li><a href="/">Home</a></li>
+        <li><a href="/book.html">Book a Session</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="wrap grid-2">
+    <section class="panel">
+      <h2 class="h2">API Key</h2>
+      <div class="form">
+        <label>Admin key
+          <input type="password" id="adminKey" placeholder="X-ADMIN-KEY">
+        </label>
+        <button id="saveKey" class="btn">Save key</button>
+        <div id="keyMsg" class="note"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="h2">Quick actions</h2>
+      <div class="form">
+        <button id="maintainBtn" class="btn">Maintain slots (14 days)</button>
+        <div id="maintainMsg" class="note"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="h2">Members</h2>
+      <div class="form row">
+        <label>Name <input type="text" id="m_name"></label>
+        <label>Email <input type="email" id="m_email"></label>
+        <label>Credits <input type="number" id="m_credits" value="0" min="0"></label>
+        <button id="addMember" class="btn">Add / Invite</button>
+      </div>
+      <div id="membersMsg" class="note"></div>
+      <div id="members"></div>
+    </section>
+
+    <section class="panel">
+      <h2 class="h2">Slots</h2>
+      <div class="form row">
+        <label>Start (local)
+          <input type="datetime-local" id="slotStart">
+        </label>
+        <label>Location
+          <select id="slotLocation">
+            <option>Scunthorpe</option>
+            <option>Hull</option>
+            <option>Shipley</option>
+          </select>
+        </label>
+        <button id="addSlot" class="btn">Add 1h Slot</button>
+      </div>
+      <div id="slotsMsg" class="note"></div>
+      <div id="slots"></div>
+    </section>
+
+    <section class="panel">
+      <h2 class="h2">Upcoming bookings</h2>
+      <div id="upcomingMsg" class="note"></div>
+      <div id="upcoming"></div>
+    </section>
+  </main>
+
+  <script src="/js/admin.js" defer></script>
+</body>
+</html>
+

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Book a Session | CSCoaching</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="/js/site.js" defer></script>
+  <!-- bump version to hard-bust cache -->
+  <script src="/js/book.js?v=5" defer></script>
+</head>
+<body>
+  <nav class="cs-nav">
+    <div class="cs-nav-inner">
+      <div class="cs-brand">CSCoaching</div>
+      <ul class="cs-nav-links">
+        <li><a href="/">Home</a></li>
+        <li class="active"><a href="/book.html">Book a Session</a></li>
+        <li id="loginLink"><a href="/login.html">Member Login</a></li>
+        <li><a href="/dashboard.html" id="dashboardLink" style="display:none;">My Dashboard</a></li>
+        <li><a href="#" id="logoutLink" style="display:none;">Logout</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="wrap">
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h1 class="h1">Available sessions</h1>
+          <div class="muted">Next 14 days · 1 hour each · Mon–Thu only</div>
+        </div>
+        <div id="creditPill" class="pill">Credits: —</div>
+      </div>
+
+      <div id="slots" class="slots-grid">
+        <div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div>
+      </div>
+      <div id="slotsError" class="muted" style="margin-top:8px;"></div>
+    </section>
+
+    <aside class="panel">
+      <h2 style="margin:4px 0 8px;">Confirm booking</h2>
+      <div class="muted" style="margin-bottom:8px;">No login required — enter your email and we’ll link it to your account.</div>
+      <div class="form">
+        <label>Email <input type="email" id="email" placeholder="you@example.com"></label>
+        <label>Notes (optional) <textarea id="notes" rows="3" placeholder="Anything we should know?"></textarea></label>
+        <!-- Spam honeypot -->
+        <input type="text" id="website" autocomplete="off" style="position:absolute;left:-9999px;top:-9999px;">
+        <button id="bookBtn" class="btn" disabled>Book selected slot</button>
+        <div id="msg" class="muted" style="margin-top:8px;"></div>
+      </div>
+    </aside>
+  </main>
+</body>
+</html>
+
