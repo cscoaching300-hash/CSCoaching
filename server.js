@@ -386,6 +386,145 @@ app.delete('/api/admin/slots/:id', requireAdmin, async (req, res) => {
   } catch { res.status(500).json({ error: 'DB_ERROR' }); }
 });
 
+/* ========== ADMIN: BOOKINGS LIST (future) ========== */
+app.get('/api/admin/bookings', requireAdmin, async (req, res) => {
+  try {
+    const rows = await pAll(
+      `SELECT b.id AS booking_id, b.member_id, b.slot_id, b.cancelled_at, b.refunded,
+              s.start_iso, s.end_iso, s.location,
+              m.name AS member_name, m.email AS member_email
+       FROM bookings b
+       JOIN slots s  ON b.slot_id = s.id
+       JOIN members m ON b.member_id = m.id
+       WHERE datetime(s.start_iso) > datetime('now')
+       ORDER BY s.start_iso ASC`,
+      []
+    );
+    res.json({ ok: true, bookings: rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB_ERROR' });
+  }
+});
+
+/* ========== ADMIN: MOVE A BOOKING ========== */
+app.patch('/api/admin/bookings/:id/move', requireAdmin, async (req, res) => {
+  const bid = Number(req.params.id);
+  const { new_slot_id } = req.body || {};
+  if (!bid || !new_slot_id) return res.status(400).json({ error: 'MISSING_FIELDS' });
+
+  try {
+    // current booking & slot
+    const b = await pGet(
+      `SELECT b.id, b.slot_id, b.member_id, s.start_iso
+       FROM bookings b JOIN slots s ON b.slot_id = s.id
+       WHERE b.id = ?`,
+      [bid]
+    );
+    if (!b) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    const tgt = await pGet(`SELECT id, is_booked FROM slots WHERE id = ?`, [new_slot_id]);
+    if (!tgt || tgt.is_booked) return res.status(400).json({ error: 'TARGET_TAKEN' });
+
+    // free old slot, occupy new, update booking
+    await pRun(`UPDATE slots SET is_booked = 0 WHERE id = ?`, [b.slot_id]);
+    await pRun(`UPDATE slots SET is_booked = 1 WHERE id = ?`, [new_slot_id]);
+    await pRun(`UPDATE bookings SET slot_id = ? WHERE id = ?`, [new_slot_id, bid]);
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB_ERROR' });
+  }
+});
+
+/* ========== ADMIN: CANCEL A BOOKING (optional refund) ========== */
+app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
+  const bid = Number(req.params.id);
+  const refund = String(req.query.refund || 'true').toLowerCase() === 'true';
+  try {
+    const row = await pGet(
+      `SELECT b.*, s.start_iso
+       FROM bookings b JOIN slots s ON b.slot_id = s.id
+       WHERE b.id = ?`,
+      [bid]
+    );
+    if (!row) return res.status(404).json({ error: 'NOT_FOUND' });
+    if (row.cancelled_at) return res.status(400).json({ error: 'ALREADY_CANCELLED' });
+
+    await pRun(`UPDATE bookings SET cancelled_at = datetime('now'), refunded = ? WHERE id = ?`, [refund ? 1 : 0, bid]);
+    await pRun(`UPDATE slots SET is_booked = 0 WHERE id = ?`, [row.slot_id]);
+    if (refund) await pRun(`UPDATE members SET credits = credits + 1 WHERE id = ?`, [row.member_id]);
+
+    res.json({ ok: true, refunded: refund });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB_ERROR' });
+  }
+});
+
+/* ========== ADMIN: MAINTAIN SLOTS (Mon–Thu windows) ========== */
+app.post('/api/admin/maintain-slots', requireAdmin, async (req, res) => {
+  const days = Math.max(1, Math.min(31, Number(req.query.days || 14)));
+
+  // business rules — same as your front-end filter
+  function hoursForDay(dow) {
+    if (dow === 1) return [17,18,19,20];        // Mon Scunthorpe
+    if (dow === 2) return [17,18,19,20,21];     // Tue Hull
+    if (dow === 3) return [18,19,20,21];        // Wed Shipley
+    if (dow === 4) return [17,18,19,20,21];     // Thu Hull
+    return [];
+  }
+  function defaultLocation(dow) {
+    if (dow === 1) return 'Scunthorpe';
+    if (dow === 2) return 'Hull';
+    if (dow === 3) return 'Shipley';
+    if (dow === 4) return 'Hull';
+    return null;
+  }
+
+  try {
+    // Purge past empty slots
+    const delRes = await pRun(
+      `DELETE FROM slots
+       WHERE is_booked = 0 AND datetime(end_iso) < datetime('now')`,
+      []
+    );
+    let purged = delRes.changes || 0;
+
+    // Create forward slots
+    let created = 0;
+    const base = new Date();
+    for (let i = 0; i < days; i++) {
+      const d = new Date(base);
+      d.setDate(base.getDate() + i);
+      const dow = d.getDay();
+
+      const hours = hoursForDay(dow);
+      const loc = defaultLocation(dow);
+      for (const h of hours) {
+        const start = new Date(d); start.setHours(h,0,0,0);
+        const end   = new Date(start.getTime() + 60*60*1000);
+
+        // Only insert if not exists already (same start)
+        const exists = await pGet(`SELECT id FROM slots WHERE start_iso = ?`, [start.toISOString()]);
+        if (!exists) {
+          await pRun(
+            `INSERT INTO slots (start_iso, end_iso, location, is_booked) VALUES (?,?,?,0)`,
+            [start.toISOString(), end.toISOString(), loc]
+          );
+          created++;
+        }
+      }
+    }
+    res.json({ ok: true, purged, created });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB_ERROR' });
+  }
+});
+
+
 /* ---------- Static ---------- */
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/admin', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
