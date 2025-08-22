@@ -325,18 +325,75 @@ app.get('/api/admin/members', requireAdmin, async (_req, res) => {
   } catch { res.status(500).json({ error: 'DB_ERROR' }); }
 });
 app.post('/api/admin/members', requireAdmin, async (req, res) => {
-  const { name, email, credits = 0 } = req.body || {};
-  if (!email) return res.status(400).json({ error: 'MISSING_EMAIL' });
   try {
-    const ins = await pRun(`INSERT INTO members (name,email,credits) VALUES (?,?,?)`, [name || null, email, Number(credits) || 0]);
-    const memberId = ins.lastID;
-    const token = uuidv4();
-    const expires = new Date(); expires.setDate(expires.getDate() + 7);
-    await pRun(`INSERT INTO invites (id,member_id,expires_at) VALUES (?,?,?)`, [token, memberId, expires.toISOString()]);
-    sendActivationEmail({ to: email, name, token }).catch(console.error);
-    res.json({ ok: true, member_id: memberId, invite: token });
-  } catch (e) { console.error(e); res.status(500).json({ error: 'DB_ERROR' }); }
+    // ---- sanitize inputs to primitives ----
+    const rawName   = req.body?.name;
+    const rawEmail  = req.body?.email;
+    const rawCreds  = req.body?.credits;
+
+    if (!rawEmail) return res.status(400).json({ error: 'MISSING_EMAIL' });
+
+    const name   = (rawName === undefined || rawName === null || rawName === '') ? null : String(rawName);
+    const email  = String(rawEmail).trim();
+    const creditsNum = Number.isFinite(Number(rawCreds)) ? Number(rawCreds) : 0;
+
+    // ---- see if member exists ----
+    const existing = await pGet(
+      `SELECT id, name, email, credits
+         FROM members
+        WHERE lower(email) = lower(?)`,
+      [email]
+    );
+
+    // helper to create (or reissue) an invite safely
+    async function issueInvite(memberId, inviteName) {
+      const token = uuidv4();
+      const expiresISO = new Date(Date.now() + 7*24*60*60*1000).toISOString(); // +7 days, as ISO string
+      // bind all four values explicitly as primitives
+      await pRun(
+        `INSERT INTO invites (id, member_id, expires_at, used)
+               VALUES (?, ?, ?, ?)`,
+        [String(token), Number(memberId), String(expiresISO), 0] // <- 0 as number, not boolean
+      );
+      sendActivationEmail({ to: email, name: inviteName, token }).catch(console.error);
+      return token;
+    }
+
+    if (existing) {
+      // update only the fields provided; keep params primitive/null
+      await pRun(
+        `UPDATE members
+            SET name    = COALESCE(?, name),
+                credits = COALESCE(?, credits)
+          WHERE id = ?`,
+        [name, Number.isFinite(creditsNum) ? creditsNum : null, Number(existing.id)]
+      );
+
+      const token = await issueInvite(existing.id, name || existing.name);
+      return res.json({ ok: true, member_id: existing.id, invite: token, existed: true });
+    }
+
+    // create new member
+    const ins = await pRun(
+      `INSERT INTO members (name, email, credits)
+            VALUES (?, ?, ?)`,
+      [name, email, creditsNum]
+    );
+    const memberId = Number(ins.lastID);
+
+    const token = await issueInvite(memberId, name);
+    return res.json({ ok: true, member_id: memberId, invite: token, existed: false });
+
+  } catch (e) {
+    // make duplicate email explicit if it ever slips to here
+    if ((e.message || '').toLowerCase().includes('unique')) {
+      return res.status(409).json({ error: 'EMAIL_ALREADY_EXISTS' });
+    }
+    console.error(e);
+    return res.status(500).json({ error: 'DB_ERROR' });
+  }
 });
+
 
 /* >>> FIXED: Coerce credits safely to avoid 500s on Turso <<< */
 app.patch('/api/admin/members/:id', requireAdmin, async (req, res) => {
