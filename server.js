@@ -455,7 +455,7 @@ app.get('/api/admin/bookings', requireAdmin, async (req, res) => {
        JOIN members m ON b.member_id = m.id
        WHERE datetime(s.start_iso) > datetime('now')
  	AND b.cancelled_at IS NULL
-ORDER BY s.start_iso ASC
+ORDER BY s.start_iso ASC`,
 
       []
     );
