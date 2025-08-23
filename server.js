@@ -580,6 +580,50 @@ app.post('/api/admin/maintain-slots', requireAdmin, async (req, res) => {
     res.status(500).json({ error: 'DB_ERROR' });
   }
 });
+/* ---------- Member: cancel their own booking ---------- */
+app.post('/api/member/bookings/:id/cancel', requireMember, async (req, res) => {
+  const bid = Number(req.params.id);
+  if (!bid) return res.status(400).json({ error: 'MISSING_ID' });
+
+  try {
+    // Find this member's booking + slot
+    const row = await pGet(
+      `SELECT b.id AS booking_id, b.member_id, b.slot_id, b.cancelled_at, b.refunded,
+              s.start_iso
+       FROM bookings b
+       JOIN slots s ON b.slot_id = s.id
+       WHERE b.id = ? AND b.member_id = ?`,
+      [bid, req.session.member.id]
+    );
+
+    if (!row) return res.status(404).json({ error: 'NOT_FOUND' });
+    if (row.cancelled_at) return res.status(400).json({ error: 'ALREADY_CANCELLED' });
+
+    // Refund only if 24h before start
+    const startMs = new Date(row.start_iso).getTime();
+    const refund = Date.now() < (startMs - 24 * 60 * 60 * 1000);
+
+    // Mark booking cancelled
+    await pRun(
+      `UPDATE bookings SET cancelled_at = datetime('now'), refunded = ? WHERE id = ?`,
+      [refund ? 1 : 0, bid]
+    );
+
+    // Free the slot
+    await pRun(`UPDATE slots SET is_booked = 0 WHERE id = ?`, [row.slot_id]);
+
+    // Return the credit if refunding
+    if (refund) {
+      await pRun(`UPDATE members SET credits = credits + 1 WHERE id = ?`, [row.member_id]);
+    }
+
+    res.json({ ok: true, refunded: !!refund });
+  } catch (e) {
+    console.error('member cancel error:', e);
+    res.status(500).json({ error: 'DB_ERROR' });
+  }
+});
+
 
 
 /* ---------- Static ---------- */
