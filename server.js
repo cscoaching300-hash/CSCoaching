@@ -321,10 +321,10 @@ app.get('/api/member/bookings', requireMember, async (req, res) => {
 /* ========== ADMIN: BOOKINGS LIST (future, exclude cancelled) ========== */
 app.get('/api/admin/bookings', requireAdmin, async (_req, res) => {
   try {
-    const nowIso = new Date().toISOString(); // pass as param instead of datetime('now')
+    const nowIso = new Date().toISOString();
     const rows = await pAll(
-      `SELECT 
-          b.id          AS booking_id,
+      `SELECT
+          b.id        AS booking_id,
           b.member_id,
           b.slot_id,
           b.cancelled_at,
@@ -332,14 +332,14 @@ app.get('/api/admin/bookings', requireAdmin, async (_req, res) => {
           s.start_iso,
           s.end_iso,
           s.location,
-          m.name        AS member_name,
-          m.email       AS member_email
-        FROM bookings b
-        JOIN slots   s ON b.slot_id   = s.id
-        JOIN members m ON b.member_id = m.id
-        WHERE s.start_iso > ?            -- compare to a bound ISO string
-          AND (b.cancelled_at IS NULL)   -- only show active/upcoming
-        ORDER BY s.start_iso ASC`,
+          m.name      AS member_name,
+          m.email     AS member_email
+       FROM bookings b
+       JOIN slots   s ON b.slot_id   = s.id
+       JOIN members m ON b.member_id = m.id
+       WHERE s.start_iso > ?
+         AND b.cancelled_at IS NULL
+       ORDER BY s.start_iso ASC`,
       [nowIso]
     );
     res.json({ ok: true, bookings: rows });
@@ -348,6 +348,22 @@ app.get('/api/admin/bookings', requireAdmin, async (_req, res) => {
     res.status(500).json({ error: 'DB_ERROR' });
   }
 });
+// List members (for the admin table)
+app.get('/api/admin/members', requireAdmin, async (_req, res) => {
+  try {
+    const rows = await pAll(
+      `SELECT id, name, email, credits
+         FROM members
+        ORDER BY created_at DESC`,
+      []
+    );
+    res.json({ ok: true, members: rows });
+  } catch (e) {
+    console.error('GET /api/admin/members error:', e);
+    res.status(500).json({ error: 'DB_ERROR' });
+  }
+});
+
 
 app.post('/api/admin/members', requireAdmin, async (req, res) => {
   try {
