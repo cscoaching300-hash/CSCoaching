@@ -202,6 +202,27 @@ function withinCoachingWindow(slot) {
   return false;
 }
 
+// Explicit routes so they don’t fall back to index.html
+app.get('/book.html', (_req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'book.html'))
+);
+
+app.get('/login.html', (_req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'login.html'))
+);
+
+app.get('/dashboard.html', (_req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'))
+);
+
+// logout route (calls API then redirects)
+app.get('/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.redirect('/');
+  });
+});
+
+
 app.get('/api/slots', async (req, res) => {
   try {
     const onlyAvailable = String(req.query.onlyAvailable || '').toLowerCase() === 'true';

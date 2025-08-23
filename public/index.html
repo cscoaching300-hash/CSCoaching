@@ -26,19 +26,21 @@
 </head>
 <body>
   <!-- Shared Navigation -->
-<nav class="cs-nav-inner">
-  <div class="cs-brand">CSCoaching</div>
-  <ul class="cs-nav-links">
-    <li><a href="/">Home</a></li>
-    <li><a href="/index.html">Book a Session</a></li>
+<nav class="cs-nav">
+  <div class="cs-nav-inner">
+    <div class="cs-brand">CSCoaching</div>
+    <ul class="cs-nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/book.html">Book a Session</a></li>
 
-    <!-- Authed-only links -->
-    <li class="nav-authed" style="display:none"><a href="/dashboard.html">My Dashboard</a></li>
-    <li class="nav-authed" style="display:none"><a href="/logout">Logout</a></li>
+      <!-- Shown only if logged in -->
+      <li class="nav-authed" style="display:none"><a href="/dashboard.html">My Dashboard</a></li>
+      <li class="nav-authed" style="display:none"><a href="/logout">Logout</a></li>
 
-    <!-- Guest-only links -->
-    <li class="nav-guest" style="display:none"><a href="/login.html">Login</a></li>
-  </ul>
+      <!-- Shown only if NOT logged in -->
+      <li class="nav-guest" style="display:none"><a href="/login.html">Login</a></li>
+    </ul>
+  </div>
 </nav>
   <!-- Simple hero -->
   <div class="hero">
