@@ -447,14 +447,15 @@ app.delete('/api/admin/slots/:id', requireAdmin, async (req, res) => {
 app.get('/api/admin/bookings', requireAdmin, async (req, res) => {
   try {
     const rows = await pAll(
-      `SELECT b.id AS booking_id, b.member_id, b.slot_id, b.cancelled_at, b.refunded,
-              s.start_iso, s.end_iso, s.location,
+      `SELECT b.id AS booking_id, b.cancelled_at, b.refunded,
+	s.id AS slot_id, s.start_iso, s.end_iso, s.location
               m.name AS member_name, m.email AS member_email
        FROM bookings b
        JOIN slots s  ON b.slot_id = s.id
        JOIN members m ON b.member_id = m.id
        WHERE datetime(s.start_iso) > datetime('now')
  	AND b.cancelled_at IS NULL
+AND datetime(s.start_iso) > datetime('now')
 ORDER BY s.start_iso ASC`,
 
       []
