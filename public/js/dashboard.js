@@ -4,11 +4,12 @@ const $ = (s) => document.querySelector(s);
 function fmt(dt, as) {
   const d = new Date(dt);
   if (as === 'date')
-    return d.toLocaleDateString([], { weekday:'short', year:'numeric', month:'short', day:'numeric' });
-  return d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    return d.toLocaleDateString([], { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function card({ id, start_iso, end_iso, location, cancelled_at, refunded }) {
+// NOTE: API returns booking_id (not id) and slot_id (aliased from slots.id)
+function card({ booking_id, slot_id, start_iso, end_iso, location, cancelled_at, refunded }) {
   const startDate = fmt(start_iso, 'date');
   const startTime = fmt(start_iso, 'time');
   const endTime   = fmt(end_iso, 'time');
@@ -18,7 +19,11 @@ function card({ id, start_iso, end_iso, location, cancelled_at, refunded }) {
     ? `<span class="cs-badge cs-badge--grey">Cancelled${refunded ? ' · Refunded' : ''}</span>`
     : `<span class="cs-badge cs-badge--green">Confirmed</span>`;
 
-  const actions = cancelled ? '' : `<button class="cs-btn cs-btn--danger" data-id="${id}">Cancel</button>`;
+  const actions = cancelled
+    ? ''
+    : `<button class="cs-btn cs-btn--danger"
+               data-booking-id="${booking_id}"
+               data-slot-id="${slot_id || ''}">Cancel</button>`;
 
   return `
   <div class="cs-card">
@@ -64,24 +69,33 @@ async function loadBookings() {
     ? upcoming.map(b => card(b)).join('')
     : '<div class="cs-empty">No upcoming bookings.</div>';
 
-  past.sort((a,b)=> new Date(b.start_iso)-new Date(a.start_iso));
+  past.sort((a, b) => new Date(b.start_iso) - new Date(a.start_iso));
   pa.innerHTML = past.length
     ? past.map(b => card(b)).join('')
     : '<div class="cs-empty">No past or cancelled bookings yet.</div>';
 
-  // wire cancel buttons
-  document.querySelectorAll('.cs-btn[data-id]').forEach(btn => {
+  // Wire cancel buttons to booking_id
+  document.querySelectorAll('.cs-btn[data-booking-id]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const id = btn.getAttribute('data-id');
+      const bid = btn.dataset.bookingId || btn.getAttribute('data-id'); // fallback if an old attr lingers
+      if (!bid) {
+        console.warn('Cancel button missing booking id:', btn.dataset);
+        alert('Sorry—missing booking id.');
+        return;
+      }
       if (!confirm('Cancel this session?')) return;
+
       btn.disabled = true;
       try {
-        const r = await fetch(`/api/member/bookings/${id}/cancel`, { method: 'POST' });
-        const j = await r.json().catch(()=>({}));
+        const r = await fetch(`/api/member/bookings/${encodeURIComponent(bid)}/cancel`, { method: 'POST' });
+        const j = await r.json().catch(() => ({}));
         if (!r.ok) { alert(j.error || 'Could not cancel'); return; }
         alert('Cancelled' + (j.refunded ? ' (refund issued)' : ''));
         await loadMe();        // credits may change
         await loadBookings();  // refresh lists
+      } catch (err) {
+        console.error(err);
+        alert('Network error.');
       } finally {
         btn.disabled = false;
       }
@@ -93,4 +107,5 @@ window.addEventListener('DOMContentLoaded', async () => {
   await loadMe();
   await loadBookings();
 });
+
 
