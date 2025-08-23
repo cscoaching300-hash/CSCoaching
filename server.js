@@ -270,6 +270,13 @@ app.post('/api/auth/login', async (req, res) => {
   } catch { res.status(500).json({ error: 'DB_ERROR' }); }
 });
 app.post('/api/auth/logout', (req, res) => req.session.destroy(() => res.json({ ok: true })));
+// Handle logout from nav link
+app.get('/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.clearCookie('csc_sid');
+    res.redirect('/login.html'); // send them back to login
+  });
+});
 app.get('/api/me', requireMember, async (req, res) => {
   try {
     const m = await pGet(`SELECT id,name,email,credits FROM members WHERE id=?`, [req.session.member.id]);
@@ -669,6 +676,19 @@ app.post('/api/member/bookings/:id/cancel', requireMember, async (req, res) => {
 
 // Return JSON 404 for any unknown /api/* route/method
 app.all('/api/*', (_req, res) => res.status(404).json({ error: 'NOT_FOUND' }));
+
+/* ---------- Easy Logout via link ---------- */
+app.get('/logout', (req, res) => {
+  req.session.destroy(() => {
+    // also clear cookie to be neat
+    res.clearCookie('csc_sid', {
+      sameSite: 'lax',
+      secure: !!process.env.RENDER,
+      httpOnly: true
+    });
+    res.redirect('/');
+  });
+});
 
 
 /* ---------- Static ---------- */
