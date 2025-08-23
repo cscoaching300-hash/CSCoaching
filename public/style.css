@@ -166,4 +166,20 @@ body { background:#0b0b0b; color:#eee; font-family: Inter, system-ui, sans-serif
 .cs-skel { height:42px; border-radius:10px; background:linear-gradient(90deg,#101114,#151720, #101114); background-size:200% 100%; animation: skel 1.4s ease infinite; }
 .cs-empty { color: var(--muted); padding: 10px; }
 
+/* === Auth (login / signup) === */
+.auth-outer {
+  min-height: calc(100vh - 56px);
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+.auth-panel {
+  width: min(520px, 92vw);
+  box-shadow: var(--shadow);
+}
+.auth-title { margin: 2px 0 6px; font-size: 26px; }
+.auth-sub { margin: 0 0 12px; }
+.auth-form .row { display: grid; gap: 10px; }
+.auth-form .btn { width: 100%; padding: 12px; }
+
 
