@@ -14,7 +14,7 @@ function fmt(dt, as) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function card({ id, start_iso, end_iso, location, cancelled_at, refunded }) {
+function card({ booking_id, start_iso, end_iso, location, cancelled_at, refunded }) { // keep booking_id
   const startDate = fmt(start_iso, 'date');
   const startTime = fmt(start_iso, 'time');
   const endTime   = fmt(end_iso, 'time');
@@ -24,9 +24,8 @@ function card({ id, start_iso, end_iso, location, cancelled_at, refunded }) {
     ? `<span class="cs-badge cs-badge--grey">Cancelled${refunded ? ' · Refunded' : ''}</span>`
     : `<span class="cs-badge cs-badge--green">Confirmed</span>`;
 
-  const actions = cancelled
-    ? ''
-    : `<button class="cs-btn cs-btn--danger" data-id="${id}">Cancel</button>`;
+  const actions = cancelled ? '' : `<button class="cs-btn cs-btn--danger" data-id="${booking_id}">Cancel</button>`;
+Cancel</button>`;
 
   return `
     <div class="cs-card">
