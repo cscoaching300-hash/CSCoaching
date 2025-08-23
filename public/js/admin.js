@@ -29,21 +29,39 @@
   }
 
   async function api(path, opt = {}) {
-    const headers = Object.assign(
-      { 'Content-Type': 'application/json', 'X-ADMIN-KEY': adminKey() },
-      opt.headers || {}
-    );
-    const res = await fetch(path, Object.assign(opt, { headers }));
-    if (!res.ok) {
-      let msg = `HTTP ${res.status}`;
+  const headers = Object.assign(
+    { 'Content-Type': 'application/json', 'X-ADMIN-KEY': adminKey() },
+    opt.headers || {}
+  );
+
+  const res = await fetch(path, Object.assign(opt, { headers }));
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    if (ct.includes('application/json')) {
       try {
         const j = await res.json();
         if (j && j.error) msg = j.error;
       } catch {}
-      throw new Error(msg);
+    } else {
+      // Read text so we can hint what's going on (often <!doctype…)
+      const text = await res.text().catch(() => '');
+      if (text.startsWith('<!doctype') || text.startsWith('<html')) {
+        msg = `Non-JSON error (likely route/redirect): ${res.status}`;
+      }
     }
-    return res.json();
+    throw new Error(msg);
   }
+
+  if (!ct.includes('application/json')) {
+    const text = await res.text().catch(() => '');
+    throw new Error('Server returned non-JSON to ' + path + '. Check server logs.');
+  }
+
+  return res.json();
+}
+
 
   function warnFromError(e) {
     if ((e.message || '').toUpperCase().includes('ADMIN_ONLY') || (e.message || '').includes('401')) {

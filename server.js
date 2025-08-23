@@ -651,6 +651,10 @@ app.post('/api/member/bookings/:id/cancel', requireMember, async (req, res) => {
   }
 });
 
+// Return JSON 404 for any unknown /api/* route/method
+app.all('/api/*', (_req, res) => res.status(404).json({ error: 'NOT_FOUND' }));
+
+
 /* ---------- Static ---------- */
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/admin', (_req, res) =>
