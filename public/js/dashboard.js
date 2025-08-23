@@ -72,19 +72,36 @@ async function loadBookings() {
     : '<div class="cs-empty">No past bookings yet.</div>';
 
   // wire cancel buttons
-  document.querySelectorAll('.cs-btn[data-id]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = btn.getAttribute('data-id');
-      if (!confirm('Cancel this session?')) return;
+document.querySelectorAll('.cs-btn[data-id]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.getAttribute('data-id');
+    if (!confirm('Cancel this session?')) return;
+
+    btn.disabled = true;
+    const orig = btn.textContent;
+    btn.textContent = 'Cancelling…';
+
+    try {
       const r = await fetch(`/api/member/bookings/${id}/cancel`, { method: 'POST' });
-      const j = await r.json().catch(()=>({}));
-      if (!r.ok) { alert(j.error || 'Could not cancel'); return; }
+      if (r.status === 401) { location.href = '/login.html'; return; }
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        alert(j.error || `Could not cancel (HTTP ${r.status})`);
+        return;
+      }
       alert('Cancelled' + (j.refunded ? ' (refund issued)' : ''));
       await loadMe();        // credits may change
       await loadBookings();  // refresh lists
-    });
+    } catch (err) {
+      console.error(err);
+      alert('Network error while cancelling.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = orig;
+    }
   });
-}
+});
+
 
 window.addEventListener('DOMContentLoaded', async () => {
   await loadMe();

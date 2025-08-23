@@ -303,25 +303,46 @@
         });
       });
 
-      table.querySelectorAll('.cancel').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const id = btn.dataset.id;
-          const refund = btn.dataset.refund === '1';
-          if (!confirm(refund ? 'Cancel and refund credit?' : 'Cancel without refund?')) return;
-          btn.disabled = true;
-          try {
-            await api(`/api/admin/bookings/${id}/cancel?refund=${refund ? 'true' : 'false'}`, {
-              method: 'POST'
-            });
-            loadSlots();
-            loadUpcoming();
-          } catch (e) {
-            upMsg.textContent = warnFromError(e);
-          } finally {
-            btn.disabled = false;
-          }
-        });
+      // Wire actions
+table.querySelectorAll('.cancel').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.dataset.id;                 // <-- this is booking_id (not slot id)
+    const refund = btn.dataset.refund === '1';
+    if (!confirm(refund ? 'Cancel and refund credit?' : 'Cancel without refund?')) return;
+
+    btn.disabled = true;
+    try {
+      // call manually so we can always include the admin key header and read the error body
+      const res = await fetch(`/api/admin/bookings/${id}/cancel?refund=${refund ? 'true' : 'false'}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-ADMIN-KEY': (localStorage.getItem('ADMIN_KEY') || '').trim(),
+        },
       });
+      let body = {};
+      try { body = await res.json(); } catch {}
+      if (!res.ok) {
+        // Show the precise reason (e.g. ADMIN_ONLY, ALREADY_CANCELLED, NOT_FOUND)
+        const msg = body?.error || `HTTP ${res.status}`;
+        throw new Error(msg);
+      }
+
+      // Success
+      upMsg.textContent = body.refunded ? 'Cancelled + refund issued.' : 'Cancelled.';
+      setTimeout(() => (upMsg.textContent = ''), 1500);
+      loadSlots();
+      loadUpcoming();
+    } catch (e) {
+      upMsg.textContent = (e.message === 'ADMIN_ONLY')
+        ? 'Unauthorized. Enter your admin key above and click Save.'
+        : e.message || 'Error';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+});
+
 
     } catch (e) {
       upDiv.innerHTML = '';
@@ -355,5 +376,3 @@
   // Initial loads
   refreshAll();
 })();
-
-
