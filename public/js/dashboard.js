@@ -24,8 +24,9 @@ function card({ booking_id, start_iso, end_iso, location, cancelled_at, refunded
     ? `<span class="cs-badge cs-badge--grey">Cancelled${refunded ? ' · Refunded' : ''}</span>`
     : `<span class="cs-badge cs-badge--green">Confirmed</span>`;
 
-  const actions = cancelled ? '' : `<button class="cs-btn cs-btn--danger" data-id="${booking_id}">Cancel</button>`;
-Cancel</button>`;
+  const actions = cancelled 
+? '' 
+: `<button class="cs-btn cs-btn--danger" data-id="${booking_id}">Cancel</button>`;
 
   return `
     <div class="cs-card">
