@@ -59,8 +59,8 @@ async function loadBookings() {
   const upcoming = [];
   const past = [];
   bookings.forEach(b => {
-    const isFuture = new Date(b.start_iso).getTime() > now;
-    (isFuture ? upcoming : past).push(b);
+    const isFuture = new Date(b.start_iso).getTime() > now && !b.cancelled_at;
+(isFuture ? upcoming : past).push(b);
   });
 
   up.innerHTML = upcoming.length
