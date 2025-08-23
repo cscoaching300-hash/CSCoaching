@@ -186,6 +186,24 @@ async function loadMyBookings() {
 // Kick it off if the container exists on this page
 window.addEventListener('DOMContentLoaded', loadMyBookings);
 
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await fetch('/api/me');
+    if (res.ok) {
+      // logged in → show dashboard + logout
+      document.querySelectorAll('.nav-authed').forEach(el => el.style.display = 'inline');
+      document.querySelectorAll('.nav-guest').forEach(el => el.style.display = 'none');
+    } else {
+      // not logged in → show login
+      document.querySelectorAll('.nav-authed').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.nav-guest').forEach(el => el.style.display = 'inline');
+    }
+  } catch {
+    document.querySelectorAll('.nav-authed').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.nav-guest').forEach(el => el.style.display = 'inline');
+  }
+});
+
 
 fromDate.value = todayStr(0);
 toDate.value = todayStr(14);
