@@ -1,53 +1,55 @@
+<!-- dashboard.html -->
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>My Bookings | CSCoaching</title>
-  <link rel="stylesheet" href="/style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <script src="/js/site.js" defer></script>
-  <script src="/js/dashboard.js" defer></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>My Bookings • CSCoaching</title>
+  <link rel="stylesheet" href="/css/app.css" />
 </head>
-<body class="cs-body">
- <nav class="cs-nav">
-  <div class="cs-nav-inner">
-    <div class="cs-brand">CSCoaching</div>
-    <ul class="cs-nav-links">
-      <li><a href="/">Home</a></li>
-      <li><a href="/index.html">Book a Session</a></li>
-      <li id="loginLink"><a href="/login.html">Member Login</a></li>
-      <li><a href="/dashboard.html" id="dashboardLink" style="display:none;">My Dashboard</a></li>
-      <li><a href="#" id="logoutLink" style="display:none;">Logout</a></li>
-    </ul>
-  </div>
-</nav>
+<body class="cs-theme">
+  <header class="cs-nav">
+    <div class="cs-nav__inner">
+      <a href="/" class="cs-brand">CSCoaching</a>
+      <nav class="cs-links">
+        <a href="/">Home</a>
+        <a href="/index.html#book">Book a Session</a>
+        <a href="/dashboard.html" aria-current="page">My Dashboard</a>
+        <a id="logoutBtn" href="/logout.html">Logout</a>
+      </nav>
+    </div>
+  </header>
 
-  <main class="cs-container">
-    <header class="cs-header">
-      <div>
-        <h1 class="cs-h1">My Bookings</h1>
-        <p class="cs-sub">Manage, track and cancel upcoming sessions.</p>
+  <!-- HERO / NAME -->
+  <main class="dash">
+    <section class="dash-hero">
+      <div class="dash-hero__left">
+        <h1 class="dash-title">Hi, <span id="memberName">there</span> 👋</h1>
+        <p class="dash-sub">Manage, track and cancel upcoming sessions.</p>
       </div>
-      <div id="creditPill" class="cs-pill">Credits: —</div>
-    </header>
-
-    <section class="cs-section">
-      <h2 class="cs-h2">Upcoming</h2>
-      <div id="upcoming" class="cs-list"></div>
+      <div class="dash-hero__right">
+        <div id="creditPill" class="cs-pill cs-pill--accent">Credits: —</div>
+      </div>
     </section>
 
-    <section class="cs-section">
-      <h2 class="cs-h2">Past & Cancelled</h2>
-      <div id="past" class="cs-list"></div>
+    <!-- GRID -->
+    <section class="dash-grid">
+      <div class="dash-col">
+        <h2 class="dash-h2">Upcoming</h2>
+        <div id="upcoming" class="cs-list">
+          <div class="cs-skel"></div>
+        </div>
+      </div>
+
+      <div class="dash-col">
+        <h2 class="dash-h2">Past &amp; Cancelled</h2>
+        <div id="past" class="cs-list">
+          <div class="cs-skel"></div>
+        </div>
+      </div>
     </section>
-
-<section class="panel">
-  <h2>My bookings</h2>
-  <div id="myBookingsMsg" class="note"></div>
-  <div id="myBookingsContainer"></div>
-</section>
-
   </main>
+
+  <script src="/js/dashboard.js" defer></script>
 </body>
 </html>
