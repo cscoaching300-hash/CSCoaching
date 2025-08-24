@@ -725,12 +725,9 @@ app.get('/api/auth/status', async (req, res) => {
 
 /* ---------- Static ---------- */
 app.use(express.static(path.join(__dirname, 'public')));
-app.get('/admin', (_req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'))
-);
-app.get('*', (_req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'index.html'))
-);
+app.get('/admin', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
 
 
 /* ---------- Start ---------- */
