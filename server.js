@@ -710,6 +710,17 @@ app.get('/logout', (req, res) => {
     res.redirect('/');
   });
 });
+// Lightweight, no-error auth check
+app.get('/api/auth/status', async (req, res) => {
+  if (req.session && req.session.member) {
+    const m = await pGet(
+      `SELECT id,name,email,credits FROM members WHERE id=?`,
+      [req.session.member.id]
+    ).catch(() => null);
+    return res.json({ ok: true, authed: true, member: m || null });
+  }
+  return res.json({ ok: true, authed: false });
+});
 
 
 /* ---------- Static ---------- */

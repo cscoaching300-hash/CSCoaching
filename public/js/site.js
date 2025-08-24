@@ -6,19 +6,21 @@
     return;
   }
 
-  // Helper to toggle guest/authed link visibility
-  async function setAuthVisibility() {
-    try {
-      const res = await fetch('/api/me', { credentials: 'same-origin' });
-      const authed = res.ok;
-      document.querySelectorAll('.nav-authed').forEach(el => el.style.display = authed ? 'inline' : 'none');
-      document.querySelectorAll('.nav-guest').forEach(el => el.style.display = authed ? 'none' : 'inline');
-    } catch (e) {
-      console.warn('[site.js] /api/me failed; showing guest links.', e);
-      document.querySelectorAll('.nav-authed').forEach(el => el.style.display = 'none');
-      document.querySelectorAll('.nav-guest').forEach(el => el.style.display = 'inline');
-    }
+  // Helper to toggle guest/authed link visibility (quiet check)
+async function setAuthVisibility() {
+  try {
+    const res = await fetch('/api/auth/status', { credentials: 'same-origin' });
+    const j = await res.json().catch(() => ({}));
+    const authed = !!j.authed;
+    document.querySelectorAll('.nav-authed').forEach(el => el.style.display = authed ? 'inline' : 'none');
+    document.querySelectorAll('.nav-guest').forEach(el => el.style.display = authed ? 'none' : 'inline');
+  } catch (e) {
+    console.warn('[site.js] /api/auth/status failed; showing guest links.', e);
+    document.querySelectorAll('.nav-authed').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.nav-guest').forEach(el => el.style.display = 'inline');
   }
+}
+
 
   // Fetch and inject the partial
   try {
