@@ -1,135 +1,190 @@
-// public/js/book.js (v6)
-console.log('[book.js v6] start');
+// public/js/book.js
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
 
-const $ = s => document.querySelector(s);
-const slotsDiv = $('#slots');
-const slotsErr = $('#slotsError');
-let selectedSlot = null;
-let me = null;
+  const slotsHost   = $('#slots');         // calendar mounts here
+  const emailInput  = $('#email');
+  const notesInput  = $('#notes');
+  const honeypot    = $('#website');
+  const bookBtn     = $('#bookBtn');
+  const msg         = $('#msg');
+  const creditPill  = $('#creditPill');
 
-// ---------- helpers ----------
-function fmt(dt, as) {
-  const d = new Date(dt);
-  if (as === 'date') return d.toLocaleDateString([], { weekday:'short', year:'numeric', month:'short', day:'numeric' });
-  return d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
-}
+  let selectedSlot = null;     // { id, start_iso, end_iso, location }
+  let allSlots = [];           // normalized slots from API
 
-function selectCard(cardEl, id) {
-  selectedSlot = id;
-  slotsDiv.querySelectorAll('.slot-card').forEach(c => c.classList.remove('selected'));
-  cardEl.classList.add('selected');
-  const btn = $('#bookBtn'); if (btn) btn.disabled = false;
-  const msg = $('#msg'); if (msg) msg.textContent = 'Slot selected. Enter your email to confirm.';
-}
+  // --- Utils ---
+  const isoDayKey = (iso) => new Date(iso).toISOString().slice(0,10);
+  const fmtTime   = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const addDays   = (d, n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+  const sameDate  = (a,b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
 
-// ---------- me / credits ----------
-async function loadMe() {
-  try {
-    const r = await fetch('/api/me', { credentials: 'include' });
-    if (r.ok) {
+  async function loadCredits() {
+    try {
+      const r = await fetch('/api/me', { credentials: 'same-origin' });
+      if (!r.ok) return;
       const j = await r.json();
-      me = j.member;
-      const pill = $('#creditPill'); if (pill) pill.textContent = `Credits: ${me.credits}`;
-      const emailEl = $('#email'); if (emailEl && me.email) emailEl.value = me.email;
-      console.log('[book.js] /api/me ok', me);
-    } else {
-      console.log('[book.js] /api/me not logged in (401 is fine)');
-    }
-  } catch (e) {
-    console.warn('[book.js] /api/me error', e);
+      const credits = j?.member?.credits ?? '—';
+      if (creditPill) creditPill.textContent = `Credits: ${credits}`;
+    } catch {}
   }
-}
 
-// ---------- slots ----------
-async function loadSlots() {
-  if (!slotsDiv) return;
-  slotsDiv.innerHTML = '<div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div>';
-  if (slotsErr) slotsErr.textContent = '';
+  // fetch slots; if empty, try bypass filter (debug=bypass)
+  async function fetchSlots() {
+    const base = '/api/slots?onlyAvailable=true';
+    let res = await fetch(base, { credentials: 'same-origin' });
+    let j = await res.json().catch(() => ({}));
+    let slots = j.slots || [];
 
-  const params = new URLSearchParams();
-  params.set('onlyAvailable','true');
+    if (!slots.length) {
+      // fallback
+      res = await fetch(base + '&debug=bypass', { credentials: 'same-origin' });
+      j = await res.json().catch(() => ({}));
+      slots = j.slots || [];
+    }
 
-  try {
-    const r = await fetch('/api/slots?' + params.toString(), { cache: 'no-store' });
-    const raw = await r.text();
-    let j;
-    try { j = JSON.parse(raw); }
-    catch { console.error('[book.js] JSON parse fail. Raw:', raw); throw new Error('Invalid response from server'); }
+    // normalize
+    allSlots = slots.map(s => ({
+      id: Number(s.id),
+      start_iso: s.start_iso,
+      end_iso: s.end_iso,
+      location: s.location || ''
+    }));
+  }
 
-    const list = Array.isArray(j.slots) ? j.slots : [];
-    console.log('[book.js] slots:', list.length);
+  // Build 2-week calendar from today (Sun..Sat × 2)
+  function renderCalendar() {
+    // group by day key
+    const byDay = {};
+    allSlots.forEach(s => {
+      const k = isoDayKey(s.start_iso);
+      (byDay[k] = byDay[k] || []).push(s);
+    });
 
-    if (!list.length) {
-      slotsDiv.innerHTML = '<div class="muted" style="padding:10px;">No open slots right now.</div>';
-      if (slotsErr) slotsErr.textContent = '';
+    // Calendar range: start from this week's Sunday to end of next Saturday
+    const today = new Date();
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay()); // Sunday
+    const totalDays = 14;
+
+    // skeleton
+    slotsHost.innerHTML = `
+      <div class="cal">
+        <div class="cal-head">
+          <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div>
+          <div>Thu</div><div>Fri</div><div>Sat</div>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+      </div>
+    `;
+
+    const grid = $('#calGrid', slotsHost);
+    grid.innerHTML = '';
+
+    for (let i = 0; i < totalDays; i++) {
+      const day = addDays(weekStart, i);
+      const key = day.toISOString().slice(0,10);
+      const list = (byDay[key] || []).sort((a,b) => new Date(a.start_iso) - new Date(b.start_iso));
+
+      const cell = document.createElement('div');
+      cell.className = 'cal-cell';
+
+      const head = document.createElement('div');
+      head.className = 'cal-cell-head';
+      head.innerHTML = `
+        <div class="cal-date">${day.toLocaleDateString([], { day:'2-digit' })}</div>
+        <div class="cal-month">${day.toLocaleDateString([], { month:'short' })}</div>
+      `;
+      if (sameDate(day, today)) head.classList.add('today');
+
+      const body = document.createElement('div');
+      body.className = 'cal-cell-body';
+
+      if (!list.length) {
+        body.innerHTML = `<div class="cal-empty">—</div>`;
+      } else {
+        list.forEach(s => {
+          const btn = document.createElement('button');
+          btn.className = 'slot-chip';
+          btn.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)} ${s.location ? `• ${s.location}` : ''}`;
+          btn.setAttribute('data-id', s.id);
+          btn.addEventListener('click', () => selectSlot(s, btn));
+          body.appendChild(btn);
+        });
+      }
+
+      cell.appendChild(head);
+      cell.appendChild(body);
+      grid.appendChild(cell);
+    }
+  }
+
+  function selectSlot(slot, btnEl) {
+    selectedSlot = slot;
+    // visual state
+    document.querySelectorAll('.slot-chip.selected').forEach(el => el.classList.remove('selected'));
+    btnEl.classList.add('selected');
+    // enable book button
+    bookBtn.disabled = false;
+    msg.textContent = `Selected: ${new Date(slot.start_iso).toLocaleString([], { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })} @ ${slot.location || 'CSCoaching'}`;
+  }
+
+  async function handleBooking() {
+    msg.textContent = '';
+    if (!selectedSlot) {
+      msg.textContent = 'Pick a slot from the calendar first.';
       return;
     }
+    const email = (emailInput.value || '').trim().toLowerCase();
+    if (!email) { msg.textContent = 'Please enter your email.'; return; }
+    if (honeypot.value) { msg.textContent = 'Spam detected.'; return; }
 
-    const html = list.map(s => `
-      <div class="slot-card" data-id="${s.id}" tabindex="0" role="button"
-           aria-label="Select ${fmt(s.start_iso,'date')} ${fmt(s.start_iso)} at ${s.location || ''}">
-        <div>
-          <div class="slot-when">${fmt(s.start_iso,'date')}</div>
-          <div class="slot-sub">${fmt(s.start_iso)} – ${fmt(s.end_iso)}</div>
-          <div class="slot-sub">${s.location || ''}</div>
-        </div>
-      </div>
-    `).join('');
-    slotsDiv.innerHTML = html;
-
-    slotsDiv.querySelectorAll('.slot-card').forEach(card => {
-      const id = Number(card.getAttribute('data-id'));
-      card.addEventListener('click', () => selectCard(card, id));
-      card.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectCard(card, id); }
+    bookBtn.disabled = true;
+    msg.textContent = 'Booking…';
+    try {
+      const payload = {
+        slot_id: selectedSlot.id,
+        email,
+        notes: (notesInput.value || '').trim(),
+        website: honeypot.value || ''
+      };
+      const r = await fetch('/api/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload)
       });
-    });
-
-  } catch (e) {
-    console.error('[book.js] loadSlots error:', e);
-    slotsDiv.innerHTML = '<div class="muted" style="padding:10px;color:#e88;">Failed to load slots.</div>';
-    if (slotsErr) slotsErr.textContent = e.message || 'Network error';
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) {
+        msg.textContent = j.error || 'Sorry, something went wrong.';
+        return;
+        }
+      msg.textContent = 'Success! Check your email for confirmation.';
+      // refresh UI: clear selection, reload slots/credits
+      selectedSlot = null;
+      emailInput.value = '';
+      notesInput.value = '';
+      await fetchSlots();
+      renderCalendar();
+      await loadCredits();
+      bookBtn.disabled = true;
+    } catch (e) {
+      console.error(e);
+      msg.textContent = 'Network error.';
+    } finally {
+      bookBtn.disabled = false;
+    }
   }
-}
 
-// ---------- booking ----------
-async function doBook() {
-  if (!selectedSlot) return;
-  const emailEl = $('#email');
-  const email = emailEl ? emailEl.value.trim() : '';
-  const notesEl = $('#notes');
-  const notes = notesEl ? notesEl.value.trim() : '';
-  const hpEl = $('#website');
-  const hp = hpEl ? hpEl.value : '';
-  const msg = $('#msg');
-
-  if (hp) return; // spam honeypot
-  if (!email) { if (msg) msg.textContent = 'Please enter an email address.'; return; }
-
-  try {
-    const r = await fetch('/api/book', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ slot_id:selectedSlot, email, notes })
-    });
-    if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error || 'Booking failed'); }
-    if (msg) msg.textContent = '✅ Booking confirmed! A confirmation email has been sent.';
-    const btn = $('#bookBtn'); if (btn) btn.disabled = true;
-    await loadMe();
-    await loadSlots();
-  } catch (e) {
-    console.error('[book.js] doBook error:', e);
-    if (msg) msg.textContent = 'Error: ' + e.message;
-  }
-}
-
-// ---------- init ----------
-window.addEventListener('DOMContentLoaded', () => {
-  console.log('[book.js] DOM ready');
-  loadMe();
-  loadSlots();
-  const btn = $('#bookBtn');
-  if (btn) btn.addEventListener('click', doBook);
-});
-
-
+  // init
+  window.addEventListener('DOMContentLoaded', async () => {
+    // show skeleton while loading
+    if (slotsHost) {
+      slotsHost.innerHTML = '<div class="skel" style="height:140px"></div>';
+    }
+    await loadCredits();
+    await fetchSlots();
+    renderCalendar();
+    bookBtn.addEventListener('click', handleBooking);
+  });
+})();

@@ -186,4 +186,94 @@ body { background:#0b0b0b; color:#eee; font-family: Inter, system-ui, sans-serif
 .auth-form .row { display: grid; gap: 10px; }
 .auth-form .btn { width: 100%; padding: 12px; }
 
+/* === Calendar layout for Book page === */
+.cal {
+  display: grid;
+  gap: 10px;
+}
+
+.cal-head {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  color: #bdbdbd;
+  font-weight: 600;
+  text-align: center;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .cal-head { display: none; }
+  .cal-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 580px) {
+  .cal-grid { grid-template-columns: 1fr; }
+}
+
+.cal-cell {
+  background: #0e0f12;
+  border: 1px solid #1d1e22;
+  border-radius: 12px;
+  padding: 10px;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cal-cell-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: #e8e8e8;
+}
+.cal-cell-head.today .cal-date { background: #e02424; color: #fff; }
+.cal-date {
+  font-weight: 800;
+  background: #16171b;
+  border: 1px solid #23242b;
+  border-radius: 8px;
+  padding: 2px 6px;
+}
+.cal-month {
+  color: #bdbdbd;
+  font-size: 12px;
+}
+
+.cal-cell-body {
+  display: grid;
+  gap: 6px;
+}
+
+.cal-empty {
+  color: #7a7a7a;
+  font-size: 13px;
+}
+
+.slot-chip {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #1d1e22;
+  background: #131417;
+  color: #e8e8e8;
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .06s ease;
+}
+.slot-chip:hover {
+  border-color: #2a2b33;
+  box-shadow: 0 0 0 1px #2a2b33 inset;
+}
+.slot-chip.selected {
+  border-color: #e02424;
+  box-shadow: 0 0 0 2px rgba(224,36,36,.25);
+}
+
+
 
