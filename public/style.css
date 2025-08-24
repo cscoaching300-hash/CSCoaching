@@ -67,6 +67,10 @@ body { background:#0b0b0b; color:#eee; font-family: Inter, system-ui, sans-serif
 .cs-nav-links li { list-style:none; }
 .cs-nav-links a { color:#e8e8e8; text-decoration:none; }
 .cs-nav-links a:hover, .cs-nav-links .active a { color:#fff; }
+.nav-authed,
+.nav-guest {
+  display: none;
+}
 
 /* === Layout / Panels === */
 .wrap { max-width:1100px; margin:24px auto; padding:0 16px; display:grid; grid-template-columns: 1.4fr .6fr; gap:16px; }
