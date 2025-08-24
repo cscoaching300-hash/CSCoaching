@@ -1,14 +1,18 @@
-<nav class="cs-nav">
-  <div class="cs-nav-inner">
-    <div class="cs-brand">CSCoaching</div>
-    <ul class="cs-nav-links">
-      <!-- Guest links -->
-      <li class="nav-guest"><a href="/login.html">Login</a></li>
-      <li class="nav-guest"><a href="/book.html">Book a Session</a></li>
-
-      <!-- Authed links -->
-      <li class="nav-authed"><a href="/dashboard.html">Dashboard</a></li>
-      <li class="nav-authed"><a href="/logout">Logout</a></li>
-    </ul>
+<!-- public/partials/nav.html -->
+<div class="cs-nav-inner">
+  <div class="cs-brand">
+    <a href="/" style="text-decoration:none;color:#fff">CSCoaching</a>
   </div>
-</nav>
+  <ul class="cs-nav-links">
+    <li><a href="/">Home</a></li>
+
+    <!-- guest-only links -->
+    <li class="nav-guest"><a href="/book.html">Book a Session</a></li>
+    <li class="nav-guest"><a href="/login.html">Login</a></li>
+
+    <!-- authed-only links (hidden until JS toggles) -->
+    <li class="nav-authed" style="display:none"><a href="/book.html">Book a Session</a></li>
+    <li class="nav-authed" style="display:none"><a href="/dashboard.html">My Dashboard</a></li>
+    <li class="nav-authed" style="display:none"><a id="logoutLink" href="#">Logout</a></li>
+  </ul>
+</div>

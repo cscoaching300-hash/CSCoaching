@@ -202,27 +202,7 @@ function withinCoachingWindow(slot) {
   return false;
 }
 
-// Explicit routes so they don’t fall back to index.html
-app.get('/book.html', (_req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'book.html'))
-);
-
-app.get('/login.html', (_req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'login.html'))
-);
-
-app.get('/dashboard.html', (_req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'))
-);
-
-// logout route (calls API then redirects)
-app.get('/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.redirect('/');
-  });
-});
-
-
+/* ---------- Public API: slots ---------- */
 app.get('/api/slots', async (req, res) => {
   try {
     const onlyAvailable = String(req.query.onlyAvailable || '').toLowerCase() === 'true';
@@ -291,13 +271,19 @@ app.post('/api/auth/login', async (req, res) => {
   } catch { res.status(500).json({ error: 'DB_ERROR' }); }
 });
 app.post('/api/auth/logout', (req, res) => req.session.destroy(() => res.json({ ok: true })));
-// Handle logout from nav link
-app.get('/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.clearCookie('csc_sid');
-    res.redirect('/login.html'); // send them back to login
-  });
+
+// Lightweight, no-error auth check for nav
+app.get('/api/auth/status', async (req, res) => {
+  if (req.session && req.session.member) {
+    const m = await pGet(
+      `SELECT id,name,email,credits FROM members WHERE id=?`,
+      [req.session.member.id]
+    ).catch(() => null);
+    return res.json({ ok: true, authed: true, member: m || null });
+  }
+  return res.json({ ok: true, authed: false });
 });
+
 app.get('/api/me', requireMember, async (req, res) => {
   try {
     const m = await pGet(`SELECT id,name,email,credits FROM members WHERE id=?`, [req.session.member.id]);
@@ -335,7 +321,7 @@ app.get('/api/member/bookings', requireMember, async (req, res) => {
   try {
     const rows = await pAll(
       `SELECT b.id AS booking_id, b.cancelled_at, b.refunded,
-  s.id AS slot_id, s.start_iso, s.end_iso, s.location
+              s.id AS slot_id, s.start_iso, s.end_iso, s.location
        FROM bookings b JOIN slots s ON b.slot_id=s.id
        WHERE b.member_id=?
        ORDER BY s.start_iso DESC`,
@@ -346,13 +332,13 @@ app.get('/api/member/bookings', requireMember, async (req, res) => {
 });
 
 /* ---------- Admin APIs ---------- */
-/* ========== ADMIN: BOOKINGS LIST (future, exclude cancelled) ========== */
+/* ADMIN: upcoming bookings (future, exclude cancelled) */
 app.get('/api/admin/bookings', requireAdmin, async (_req, res) => {
   try {
     const nowIso = new Date().toISOString();
     const rows = await pAll(
-      `SELECT
-          b.id        AS booking_id,
+      `SELECT 
+          b.id          AS booking_id,
           b.member_id,
           b.slot_id,
           b.cancelled_at,
@@ -360,14 +346,14 @@ app.get('/api/admin/bookings', requireAdmin, async (_req, res) => {
           s.start_iso,
           s.end_iso,
           s.location,
-          m.name      AS member_name,
-          m.email     AS member_email
-       FROM bookings b
-       JOIN slots   s ON b.slot_id   = s.id
-       JOIN members m ON b.member_id = m.id
-       WHERE s.start_iso > ?
-         AND b.cancelled_at IS NULL
-       ORDER BY s.start_iso ASC`,
+          m.name        AS member_name,
+          m.email       AS member_email
+        FROM bookings b
+        JOIN slots   s ON b.slot_id   = s.id
+        JOIN members m ON b.member_id = m.id
+        WHERE s.start_iso > ?
+          AND b.cancelled_at IS NULL
+        ORDER BY s.start_iso ASC`,
       [nowIso]
     );
     res.json({ ok: true, bookings: rows });
@@ -376,7 +362,7 @@ app.get('/api/admin/bookings', requireAdmin, async (_req, res) => {
     res.status(500).json({ error: 'DB_ERROR' });
   }
 });
-// List members (for the admin table)
+
 app.get('/api/admin/members', requireAdmin, async (_req, res) => {
   try {
     const rows = await pAll(
@@ -392,10 +378,8 @@ app.get('/api/admin/members', requireAdmin, async (_req, res) => {
   }
 });
 
-
 app.post('/api/admin/members', requireAdmin, async (req, res) => {
   try {
-    // ---- sanitize inputs to primitives ----
     const rawName   = req.body?.name;
     const rawEmail  = req.body?.email;
     const rawCreds  = req.body?.credits;
@@ -406,7 +390,6 @@ app.post('/api/admin/members', requireAdmin, async (req, res) => {
     const email  = String(rawEmail).trim();
     const creditsNum = Number.isFinite(Number(rawCreds)) ? Number(rawCreds) : 0;
 
-    // ---- see if member exists ----
     const existing = await pGet(
       `SELECT id, name, email, credits
          FROM members
@@ -414,22 +397,19 @@ app.post('/api/admin/members', requireAdmin, async (req, res) => {
       [email]
     );
 
-    // helper to create (or reissue) an invite safely
     async function issueInvite(memberId, inviteName) {
       const token = uuidv4();
-      const expiresISO = new Date(Date.now() + 7*24*60*60*1000).toISOString(); // +7 days, as ISO string
-      // bind all four values explicitly as primitives
+      const expiresISO = new Date(Date.now() + 7*24*60*60*1000).toISOString();
       await pRun(
         `INSERT INTO invites (id, member_id, expires_at, used)
-               VALUES (?, ?, ?, ?)`,
-        [String(token), Number(memberId), String(expiresISO), 0] // <- 0 as number, not boolean
+         VALUES (?, ?, ?, ?)`,
+        [String(token), Number(memberId), String(expiresISO), 0]
       );
       sendActivationEmail({ to: email, name: inviteName, token }).catch(console.error);
       return token;
     }
 
     if (existing) {
-      // update only the fields provided; keep params primitive/null
       await pRun(
         `UPDATE members
             SET name    = COALESCE(?, name),
@@ -437,24 +417,20 @@ app.post('/api/admin/members', requireAdmin, async (req, res) => {
           WHERE id = ?`,
         [name, Number.isFinite(creditsNum) ? creditsNum : null, Number(existing.id)]
       );
-
       const token = await issueInvite(existing.id, name || existing.name);
       return res.json({ ok: true, member_id: existing.id, invite: token, existed: true });
     }
 
-    // create new member
     const ins = await pRun(
       `INSERT INTO members (name, email, credits)
-            VALUES (?, ?, ?)`,
+       VALUES (?, ?, ?)`,
       [name, email, creditsNum]
     );
     const memberId = Number(ins.lastID);
-
     const token = await issueInvite(memberId, name);
     return res.json({ ok: true, member_id: memberId, invite: token, existed: false });
 
   } catch (e) {
-    // make duplicate email explicit if it ever slips to here
     if ((e.message || '').toLowerCase().includes('unique')) {
       return res.status(409).json({ error: 'EMAIL_ALREADY_EXISTS' });
     }
@@ -463,8 +439,6 @@ app.post('/api/admin/members', requireAdmin, async (req, res) => {
   }
 });
 
-
-/* >>> FIXED: Coerce credits safely to avoid 500s on Turso <<< */
 app.patch('/api/admin/members/:id', requireAdmin, async (req, res) => {
   let { credits, name } = req.body || {};
   try {
@@ -496,6 +470,7 @@ app.get('/api/admin/slots', requireAdmin, async (_req, res) => {
     res.json({ ok: true, slots: rows });
   } catch { res.status(500).json({ error: 'DB_ERROR' }); }
 });
+
 app.post('/api/admin/slots', requireAdmin, async (req, res) => {
   const { start_iso, location } = req.body || {};
   if (!start_iso) return res.status(400).json({ error: 'MISSING_START' });
@@ -505,6 +480,7 @@ app.post('/api/admin/slots', requireAdmin, async (req, res) => {
     res.json({ ok: true, id: ins.lastID });
   } catch { res.status(500).json({ error: 'DB_ERROR' }); }
 });
+
 app.delete('/api/admin/slots/:id', requireAdmin, async (req, res) => {
   try {
     await pRun(`DELETE FROM slots WHERE id=? AND is_booked=0`, [req.params.id]);
@@ -512,38 +488,13 @@ app.delete('/api/admin/slots/:id', requireAdmin, async (req, res) => {
   } catch { res.status(500).json({ error: 'DB_ERROR' }); }
 });
 
-/* ========== ADMIN: BOOKINGS LIST (future) ========== */
-app.get('/api/admin/bookings', requireAdmin, async (req, res) => {
-  try {
-    const rows = await pAll(
-      `SELECT b.id AS booking_id, b.cancelled_at, b.refunded,
-	s.id AS slot_id, s.start_iso, s.end_iso, s.location
-              m.name AS member_name, m.email AS member_email
-       FROM bookings b
-       JOIN slots s  ON b.slot_id = s.id
-       JOIN members m ON b.member_id = m.id
-       WHERE datetime(s.start_iso) > datetime('now')
- 	AND b.cancelled_at IS NULL
-AND datetime(s.start_iso) > datetime('now')
-ORDER BY s.start_iso ASC`,
-
-      []
-    );
-    res.json({ ok: true, bookings: rows });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'DB_ERROR' });
-  }
-});
-
-/* ========== ADMIN: MOVE A BOOKING ========== */
+/* ADMIN: move & cancel bookings */
 app.patch('/api/admin/bookings/:id/move', requireAdmin, async (req, res) => {
   const bid = Number(req.params.id);
   const { new_slot_id } = req.body || {};
   if (!bid || !new_slot_id) return res.status(400).json({ error: 'MISSING_FIELDS' });
 
   try {
-    // current booking & slot
     const b = await pGet(
       `SELECT b.id, b.slot_id, b.member_id, s.start_iso
        FROM bookings b JOIN slots s ON b.slot_id = s.id
@@ -555,7 +506,6 @@ app.patch('/api/admin/bookings/:id/move', requireAdmin, async (req, res) => {
     const tgt = await pGet(`SELECT id, is_booked FROM slots WHERE id = ?`, [new_slot_id]);
     if (!tgt || tgt.is_booked) return res.status(400).json({ error: 'TARGET_TAKEN' });
 
-    // free old slot, occupy new, update booking
     await pRun(`UPDATE slots SET is_booked = 0 WHERE id = ?`, [b.slot_id]);
     await pRun(`UPDATE slots SET is_booked = 1 WHERE id = ?`, [new_slot_id]);
     await pRun(`UPDATE bookings SET slot_id = ? WHERE id = ?`, [new_slot_id, bid]);
@@ -567,7 +517,6 @@ app.patch('/api/admin/bookings/:id/move', requireAdmin, async (req, res) => {
   }
 });
 
-/* ========== ADMIN: CANCEL A BOOKING (optional refund) ========== */
 app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
   const bid = Number(req.params.id);
   const refund = String(req.query.refund || 'true').toLowerCase() === 'true';
@@ -596,7 +545,6 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
 app.post('/api/admin/maintain-slots', requireAdmin, async (req, res) => {
   const days = Math.max(1, Math.min(31, Number(req.query.days || 14)));
 
-  // business rules — same as your front-end filter
   function hoursForDay(dow) {
     if (dow === 1) return [17,18,19,20];        // Mon Scunthorpe
     if (dow === 2) return [17,18,19,20,21];     // Tue Hull
@@ -613,7 +561,6 @@ app.post('/api/admin/maintain-slots', requireAdmin, async (req, res) => {
   }
 
   try {
-    // Purge past empty slots
     const delRes = await pRun(
       `DELETE FROM slots
        WHERE is_booked = 0 AND datetime(end_iso) < datetime('now')`,
@@ -621,7 +568,6 @@ app.post('/api/admin/maintain-slots', requireAdmin, async (req, res) => {
     );
     let purged = delRes.changes || 0;
 
-    // Create forward slots
     let created = 0;
     const base = new Date();
     for (let i = 0; i < days; i++) {
@@ -635,7 +581,6 @@ app.post('/api/admin/maintain-slots', requireAdmin, async (req, res) => {
         const start = new Date(d); start.setHours(h,0,0,0);
         const end   = new Date(start.getTime() + 60*60*1000);
 
-        // Only insert if not exists already (same start)
         const exists = await pGet(`SELECT id FROM slots WHERE start_iso = ?`, [start.toISOString()]);
         if (!exists) {
           await pRun(
@@ -652,13 +597,13 @@ app.post('/api/admin/maintain-slots', requireAdmin, async (req, res) => {
     res.status(500).json({ error: 'DB_ERROR' });
   }
 });
+
 /* -------- Member: Cancel their own booking (refund only if >24h) -------- */
 app.post('/api/member/bookings/:id/cancel', requireMember, async (req, res) => {
   const idNum = Number(req.params.id);
   if (!Number.isFinite(idNum)) return res.status(400).json({ error: 'BAD_ID' });
 
   try {
-    // 1) Try by booking id (expected)
     let row = await pGet(
       `SELECT b.id, b.member_id, b.slot_id, b.cancelled_at, s.start_iso
          FROM bookings b
@@ -667,7 +612,6 @@ app.post('/api/member/bookings/:id/cancel', requireMember, async (req, res) => {
       [idNum, req.session.member.id]
     );
 
-    // 2) Fallback: if not found, try treating :id as slot_id (robustness)
     if (!row) {
       row = await pGet(
         `SELECT b.id, b.member_id, b.slot_id, b.cancelled_at, s.start_iso
@@ -695,13 +639,12 @@ app.post('/api/member/bookings/:id/cancel', requireMember, async (req, res) => {
   }
 });
 
-// Return JSON 404 for any unknown /api/* route/method
+/* ---------- Unknown /api => 404 JSON ---------- */
 app.all('/api/*', (_req, res) => res.status(404).json({ error: 'NOT_FOUND' }));
 
-/* ---------- Easy Logout via link ---------- */
+/* ---------- Easy Logout via link (single definition) ---------- */
 app.get('/logout', (req, res) => {
   req.session.destroy(() => {
-    // also clear cookie to be neat
     res.clearCookie('csc_sid', {
       sameSite: 'lax',
       secure: !!process.env.RENDER,
@@ -710,28 +653,24 @@ app.get('/logout', (req, res) => {
     res.redirect('/');
   });
 });
-// Lightweight, no-error auth check
-app.get('/api/auth/status', async (req, res) => {
-  if (req.session && req.session.member) {
-    const m = await pGet(
-      `SELECT id,name,email,credits FROM members WHERE id=?`,
-      [req.session.member.id]
-    ).catch(() => null);
-    return res.json({ ok: true, authed: true, member: m || null });
-  }
-  return res.json({ ok: true, authed: false });
-});
 
+/* ---------- Explicit HTML routes so they don’t fall through ---------- */
+app.get('/book.html', (_req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'book.html'))
+);
+app.get('/login.html', (_req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'login.html'))
+);
+app.get('/dashboard.html', (_req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'))
+);
 
-/* ---------- Static ---------- */
+/* ---------- Static & catch-all ---------- */
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/admin', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-
-
 
 /* ---------- Start ---------- */
 app.listen(PORT, () => {
   console.log(`Server running on ${APP_BASE_URL} (turso=${useTurso})`);
 });
-
