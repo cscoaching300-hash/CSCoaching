@@ -1,6 +1,8 @@
 // public/js/book.js
 (() => {
-  const $ = (s, r = document) => r.querySelector(s);
+  // define $ (alias of qs) so your calls like $('#slots') work
+  const $  = (s, el = document) => el.querySelector(s);
+  const qs = (s, el = document) => el.querySelector(s);
 
   const slotsHost   = $('#slots');         // calendar mounts here
   const emailInput  = $('#email');
@@ -10,13 +12,13 @@
   const msg         = $('#msg');
   const creditPill  = $('#creditPill');
 
-  let selectedSlot = null;     // { id, start_iso, end_iso, location }
-  let allSlots = [];           // normalized slots from API
+  let selectedSlot = null; // { id, start_iso, end_iso, location }
+  let allSlots = [];       // normalized slots from API
 
   // --- Utils ---
-  const isoDayKey = (iso) => new Date(iso).toISOString().slice(0,10);
-  const fmtTime   = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const addDays   = (d, n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+  const isoDayKey = iso => new Date(iso).toISOString().slice(0, 10);
+  const fmtTime   = iso => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const addDays   = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
   const sameDate  = (a,b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
 
   async function loadCredits() {
@@ -37,13 +39,11 @@
     let slots = j.slots || [];
 
     if (!slots.length) {
-      // fallback
       res = await fetch(base + '&debug=bypass', { credentials: 'same-origin' });
       j = await res.json().catch(() => ({}));
       slots = j.slots || [];
     }
 
-    // normalize
     allSlots = slots.map(s => ({
       id: Number(s.id),
       start_iso: s.start_iso,
@@ -52,22 +52,21 @@
     }));
   }
 
-  // Build 2-week calendar from today (Sun..Sat × 2)
+  // Build 2-week calendar from this week's Sunday
   function renderCalendar() {
-    // group by day key
+    if (!slotsHost) return;
+
     const byDay = {};
     allSlots.forEach(s => {
       const k = isoDayKey(s.start_iso);
       (byDay[k] = byDay[k] || []).push(s);
     });
 
-    // Calendar range: start from this week's Sunday to end of next Saturday
     const today = new Date();
     const weekStart = new Date(today);
     weekStart.setDate(today.getDate() - today.getDay()); // Sunday
     const totalDays = 14;
 
-    // skeleton
     slotsHost.innerHTML = `
       <div class="cal">
         <div class="cal-head">
@@ -83,7 +82,7 @@
 
     for (let i = 0; i < totalDays; i++) {
       const day = addDays(weekStart, i);
-      const key = day.toISOString().slice(0,10);
+      const key = day.toISOString().slice(0, 10);
       const list = (byDay[key] || []).sort((a,b) => new Date(a.start_iso) - new Date(b.start_iso));
 
       const cell = document.createElement('div');
@@ -92,8 +91,8 @@
       const head = document.createElement('div');
       head.className = 'cal-cell-head';
       head.innerHTML = `
-        <div class="cal-date">${day.toLocaleDateString([], { day:'2-digit' })}</div>
-        <div class="cal-month">${day.toLocaleDateString([], { month:'short' })}</div>
+        <div class="cal-date">${day.toLocaleDateString([], { day: '2-digit' })}</div>
+        <div class="cal-month">${day.toLocaleDateString([], { month: 'short' })}</div>
       `;
       if (sameDate(day, today)) head.classList.add('today');
 
@@ -106,8 +105,8 @@
         list.forEach(s => {
           const btn = document.createElement('button');
           btn.className = 'slot-chip';
-          btn.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)} ${s.location ? `• ${s.location}` : ''}`;
-          btn.setAttribute('data-id', s.id);
+          btn.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)}${s.location ? ` • ${s.location}` : ''}`;
+          btn.dataset.id = s.id;
           btn.addEventListener('click', () => selectSlot(s, btn));
           body.appendChild(btn);
         });
@@ -121,32 +120,31 @@
 
   function selectSlot(slot, btnEl) {
     selectedSlot = slot;
-    // visual state
     document.querySelectorAll('.slot-chip.selected').forEach(el => el.classList.remove('selected'));
     btnEl.classList.add('selected');
-    // enable book button
-    bookBtn.disabled = false;
-    msg.textContent = `Selected: ${new Date(slot.start_iso).toLocaleString([], { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })} @ ${slot.location || 'CSCoaching'}`;
+    if (bookBtn) bookBtn.disabled = false;
+    if (msg) {
+      msg.textContent =
+        `Selected: ${new Date(slot.start_iso).toLocaleString([], { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })} @ ${slot.location || 'CSCoaching'}`;
+    }
   }
 
   async function handleBooking() {
+    if (!msg) return;
     msg.textContent = '';
-    if (!selectedSlot) {
-      msg.textContent = 'Pick a slot from the calendar first.';
-      return;
-    }
-    const email = (emailInput.value || '').trim().toLowerCase();
+    if (!selectedSlot) { msg.textContent = 'Pick a slot from the calendar first.'; return; }
+    const email = (emailInput?.value || '').trim().toLowerCase();
     if (!email) { msg.textContent = 'Please enter your email.'; return; }
-    if (honeypot.value) { msg.textContent = 'Spam detected.'; return; }
+    if (honeypot?.value) { msg.textContent = 'Spam detected.'; return; }
 
-    bookBtn.disabled = true;
+    if (bookBtn) bookBtn.disabled = true;
     msg.textContent = 'Booking…';
     try {
       const payload = {
         slot_id: selectedSlot.id,
         email,
-        notes: (notesInput.value || '').trim(),
-        website: honeypot.value || ''
+        notes: (notesInput?.value || '').trim(),
+        website: honeypot?.value || ''
       };
       const r = await fetch('/api/book', {
         method: 'POST',
@@ -158,33 +156,31 @@
       if (!r.ok || !j.ok) {
         msg.textContent = j.error || 'Sorry, something went wrong.';
         return;
-        }
+      }
       msg.textContent = 'Success! Check your email for confirmation.';
-      // refresh UI: clear selection, reload slots/credits
       selectedSlot = null;
-      emailInput.value = '';
-      notesInput.value = '';
+      if (emailInput) emailInput.value = '';
+      if (notesInput) notesInput.value = '';
       await fetchSlots();
       renderCalendar();
       await loadCredits();
-      bookBtn.disabled = true;
+      if (bookBtn) bookBtn.disabled = true;
     } catch (e) {
       console.error(e);
       msg.textContent = 'Network error.';
     } finally {
-      bookBtn.disabled = false;
+      if (bookBtn) bookBtn.disabled = false;
     }
   }
 
   // init
   window.addEventListener('DOMContentLoaded', async () => {
-    // show skeleton while loading
     if (slotsHost) {
       slotsHost.innerHTML = '<div class="skel" style="height:140px"></div>';
     }
     await loadCredits();
     await fetchSlots();
     renderCalendar();
-    bookBtn.addEventListener('click', handleBooking);
+    if (bookBtn) bookBtn.addEventListener('click', handleBooking);
   });
 })();
