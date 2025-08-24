@@ -8,12 +8,13 @@
     />
     <title>Member Login • CSCoaching</title>
     <link rel="stylesheet" href="/style.css?v=20250823" />
+    <script src="/js/site.js" defer></script>
   </head>
   <body>
     <!-- Shared nav -->
-    <nav class="cs-nav">
+    <header>
       <div id="nav-placeholder"></div>
-    </nav>
+    </header>
 
     <!-- Centered auth card -->
     <main class="auth-outer">
@@ -22,15 +23,33 @@
           <h1 class="h1 auth-title">Member Login</h1>
         </div>
 
-        <p class="muted auth-sub">Welcome back—sign in to manage your bookings and credits.</p>
+        <p class="muted auth-sub">
+          Welcome back—sign in to manage your bookings and credits.
+        </p>
 
         <form id="loginForm" class="auth-form">
           <div class="row" style="width:100%">
-            <input id="email" type="email" placeholder="Email" autocomplete="username" required />
-            <input id="password" type="password" placeholder="Password" autocomplete="current-password" required />
+            <input
+              id="email"
+              type="email"
+              placeholder="Email"
+              autocomplete="username"
+              required
+            />
+            <input
+              id="password"
+              type="password"
+              placeholder="Password"
+              autocomplete="current-password"
+              required
+            />
             <button class="btn" type="submit">Log In</button>
           </div>
-          <div id="loginMsg" class="muted" style="margin-top:10px; min-height:1.2rem;"></div>
+          <div
+            id="loginMsg"
+            class="muted"
+            style="margin-top:10px; min-height:1.2rem;"
+          ></div>
         </form>
       </section>
     </main>
@@ -38,3 +57,4 @@
     <script src="/js/login.js" defer></script>
   </body>
 </html>
+
