@@ -186,15 +186,39 @@ async function loadMyBookings() {
 // Kick it off if the container exists on this page
 window.addEventListener('DOMContentLoaded', loadMyBookings);
 
+<script>
 window.addEventListener('DOMContentLoaded', async () => {
   try {
-    const res = await fetch('/api/me');
+    const res = await fetch('/api/me', { headers: { 'Accept': 'application/json' } });
     if (res.ok) {
-      // logged in → show dashboard + logout
+      // logged in → show dashboard/logout
       document.querySelectorAll('.nav-authed').forEach(el => el.style.display = 'inline');
       document.querySelectorAll('.nav-guest').forEach(el => el.style.display = 'none');
     } else {
-      // not logged in → show login
+      // not logged in → show login/register
+      document.querySelectorAll('.nav-authed').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.nav-guest').forEach(el => el.style.display = 'inline');
+    }
+  } catch {
+    // fallback if request fails
+    document.querySelectorAll('.nav-authed').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.nav-guest').forEach(el => el.style.display = 'inline');
+  }
+});
+</script>
+<script>
+async function loadNav() {
+  const res = await fetch('/partials/nav.html');
+  const html = await res.text();
+  document.getElementById('nav-placeholder').innerHTML = html;
+
+  // Now toggle based on login
+  try {
+    const me = await fetch('/api/me');
+    if (me.ok) {
+      document.querySelectorAll('.nav-authed').forEach(el => el.style.display = 'inline');
+      document.querySelectorAll('.nav-guest').forEach(el => el.style.display = 'none');
+    } else {
       document.querySelectorAll('.nav-authed').forEach(el => el.style.display = 'none');
       document.querySelectorAll('.nav-guest').forEach(el => el.style.display = 'inline');
     }
@@ -202,7 +226,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.querySelectorAll('.nav-authed').forEach(el => el.style.display = 'none');
     document.querySelectorAll('.nav-guest').forEach(el => el.style.display = 'inline');
   }
-});
+}
+window.addEventListener('DOMContentLoaded', loadNav);
+</script>
+
 
 
 fromDate.value = todayStr(0);
