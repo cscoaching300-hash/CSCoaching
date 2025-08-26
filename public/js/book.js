@@ -1,18 +1,49 @@
 // public/js/book.js
 (() => {
-const UK_FMT_TIME = new Intl.DateTimeFormat([], {
-  hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London'
-});
-const UK_FMT_DAY  = new Intl.DateTimeFormat([], {
-  day: '2-digit', timeZone: 'Europe/London'
-});
-const UK_FMT_MON  = new Intl.DateTimeFormat([], {
-  month: 'short', timeZone: 'Europe/London'
-});
+  const TZ = 'Europe/London';
+
+  // ---- Formatters (DST-aware for Europe/London) ----
+  const FMT_TIME = new Intl.DateTimeFormat([], {
+    hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ
+  });
+  const FMT_DAY = new Intl.DateTimeFormat([], {
+    day: '2-digit', timeZone: TZ
+  });
+  const FMT_MON = new Intl.DateTimeFormat([], {
+    month: 'short', timeZone: TZ
+  });
+  const FMT_YMD_PARTS = new Intl.DateTimeFormat('en-GB', {
+    year: 'numeric', month: '2-digit', day: '2-digit', timeZone: TZ
+  });
+
+  // Helpers to get YYYY-MM-DD in Europe/London
+  const partsFromDate = (d) =>
+    FMT_YMD_PARTS.formatToParts(d).reduce((acc, p) => (acc[p.type] = p.value, acc), {});
+
+  const keyFromISO = (iso) => {
+    const p = partsFromDate(new Date(iso));
+    return `${p.year}-${p.month}-${p.day}`;
+  };
+
+  const keyFromDate = (d) => {
+    const p = partsFromDate(d);
+    return `${p.year}-${p.month}-${p.day}`;
+  };
+
+  const fmtTime = (iso) => FMT_TIME.format(new Date(iso));
+
+  const addDays = (d, n) => {
+    const x = new Date(d);
+    x.setDate(x.getDate() + n);
+    return x;
+  };
+
+  const sameLocalDay = (a, b) => keyFromDate(a) === keyFromDate(b);
+
+  // ---- DOM ----
   const qs = (s, el = document) => el.querySelector(s);
 
-  // Hook up elements (use qs, not $)
-  const slotsHost  = qs('#slots');        // calendar mounts here
+  const slotsHost  = qs('#slots');
   const emailInput = qs('#email');
   const notesInput = qs('#notes');
   const honeypot   = qs('#website');
@@ -23,20 +54,7 @@ const UK_FMT_MON  = new Intl.DateTimeFormat([], {
   let selectedSlot = null;
   let allSlots = [];
 
-  // --- Utils ---
- const isoDayKey = (iso) => {
-const d = new Date(iso);
-  const y = d.getEurope/LondonFullYear();
-  const m = String(d.getEurope/LondonMonth() + 1).padStart(2, '0');
-  const day = String(d.getEurope/LondonDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-  const fmtTime = (iso) => UK_FMT_TIME.format(new Date(iso));
-  const addDays   = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-  const sameDate = (a, b) =>
-  a.getEurope/LondonFullYear()===b.getEurope/LondonFullYear() &&
-  a.getEurope/LondonMonth()===b.getEurope/LondonMonth() &&
-  a.getEurope/LondonDate()===b.getEurope/LondonDate();
-
+  // ---- API helpers ----
   async function loadCredits() {
     try {
       const r = await fetch('/api/me', { credentials: 'same-origin' });
@@ -48,26 +66,16 @@ const d = new Date(iso);
   }
 
   async function fetchSlots() {
-    // Look ahead 60 days
-    const to = new Date();
-    to.setDate(to.getDate() + 60);
-    const toStr = to.toISOString().slice(0, 10);
-
-    // Start with normal filter (no onlyAvailable so the UI isn’t empty),
-    // then fallback to debug=bypass if zero.
-    const base = '/api/slots';  // ask for all slots; we'll disable booked in UI
-console.log('[book.js] fetching slots from', base);
-
+    // first try normal (respects server filter); then fallback to bypass
+    const base = '/api/slots';
     let res = await fetch(base, { credentials: 'same-origin' });
     let j = await res.json().catch(() => ({}));
     let slots = j.slots || [];
-    console.log('[book.js] slots (normal):', slots.length, slots);
 
     if (!slots.length) {
       res = await fetch(base + '?debug=bypass', { credentials: 'same-origin' });
       j = await res.json().catch(() => ({}));
       slots = j.slots || [];
-      console.log('[book.js] slots (bypass):', slots.length, slots);
     }
 
     allSlots = slots.map(s => ({
@@ -75,49 +83,51 @@ console.log('[book.js] fetching slots from', base);
       start_iso: s.start_iso,
       end_iso: s.end_iso,
       location: s.location || '',
-is_booked: Number(s.is_booked) === 1
-	
+      is_booked: Number(s.is_booked) === 1
     }));
-console.log('[book.js] normalized allSlots:', allSlots);
   }
 
+  // ---- Calendar rendering ----
   function renderCalendar() {
     if (!slotsHost) return;
 
-    // If still empty, show a friendly message
     if (!allSlots.length) {
       slotsHost.innerHTML = `
         <div class="panel">
           <h3 style="margin:0 0 6px">No sessions found</h3>
-          <div class="muted">We couldn’t find sessions in the next 60 days. If you recently added slots, try Admin → Maintain slots and refresh.</div>
+          <div class="muted">We couldn’t find sessions in the upcoming range.</div>
         </div>`;
       return;
     }
 
-    // Group by day
+    // group by local day
     const byDay = {};
     allSlots.forEach(s => {
-      const k = isoDayKey(s.start_iso);
+      const k = keyFromISO(s.start_iso);
       (byDay[k] = byDay[k] || []).push(s);
     });
 
-    // Render 4 weeks from this Sunday
     const today = new Date();
     const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - today.getDay()); // Sunday
-    const totalDays = 28;
+    weekStart.setDate(today.getDate() - today.getDay()); // Sunday in local tz
+    const totalDays = 28; // 4 weeks
 
     slotsHost.innerHTML = `
-       <div class="cal-date">${UK_FMT_DAY.format(day)}</div>
-  <div class="cal-month">${UK_FMT_MON.format(day)}</div>
-`;
+      <div class="cal">
+        <div class="cal-head">
+          <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div>
+          <div>Thu</div><div>Fri</div><div>Sat</div>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+      </div>
+    `;
 
     const grid = qs('#calGrid', slotsHost);
     grid.innerHTML = '';
 
     for (let i = 0; i < totalDays; i++) {
       const day = addDays(weekStart, i);
-      const key = day.toISOString().slice(0, 10);
+      const key = keyFromDate(day);
       const list = (byDay[key] || []).sort((a, b) => new Date(a.start_iso) - new Date(b.start_iso));
 
       const cell = document.createElement('div');
@@ -126,10 +136,10 @@ console.log('[book.js] normalized allSlots:', allSlots);
       const head = document.createElement('div');
       head.className = 'cal-cell-head';
       head.innerHTML = `
-        <div class="cal-date">${day.toLocaleDateString([], { day:'2-digit' })}</div>
-        <div class="cal-month">${day.toLocaleDateString([], { month:'short' })}</div>
+        <div class="cal-date">${FMT_DAY.format(day)}</div>
+        <div class="cal-month">${FMT_MON.format(day)}</div>
       `;
-      if (sameDate(day, today)) head.classList.add('today');
+      if (sameLocalDay(day, today)) head.classList.add('today');
 
       const body = document.createElement('div');
       body.className = 'cal-cell-body';
@@ -152,7 +162,6 @@ console.log('[book.js] normalized allSlots:', allSlots);
             body.appendChild(btn);
           }
         });
-        });
       }
 
       cell.appendChild(head);
@@ -168,7 +177,7 @@ console.log('[book.js] normalized allSlots:', allSlots);
     if (bookBtn) bookBtn.disabled = false;
     if (msg) {
       msg.textContent = `Selected: ${new Date(slot.start_iso).toLocaleString([], {
-        weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'
+        weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: TZ
       })} @ ${slot.location || 'CSCoaching'}`;
     }
   }
@@ -228,4 +237,3 @@ console.log('[book.js] normalized allSlots:', allSlots);
     if (bookBtn) bookBtn.addEventListener('click', handleBooking);
   });
 })();
-
