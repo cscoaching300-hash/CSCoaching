@@ -1,5 +1,14 @@
 // public/js/book.js
 (() => {
+const UK_FMT_TIME = new Intl.DateTimeFormat([], {
+  hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London'
+});
+const UK_FMT_DAY  = new Intl.DateTimeFormat([], {
+  day: '2-digit', timeZone: 'Europe/London'
+});
+const UK_FMT_MON  = new Intl.DateTimeFormat([], {
+  month: 'short', timeZone: 'Europe/London'
+});
   const qs = (s, el = document) => el.querySelector(s);
 
   // Hook up elements (use qs, not $)
@@ -15,10 +24,18 @@
   let allSlots = [];
 
   // --- Utils ---
-  const isoDayKey = (iso) => new Date(iso).toISOString().slice(0, 10);
-  const fmtTime   = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+ const isoDayKey = (iso) => {
+const d = new Date(iso);
+  const y = d.getEurope/LondonFullYear();
+  const m = String(d.getEurope/LondonMonth() + 1).padStart(2, '0');
+  const day = String(d.getEurope/LondonDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+  const fmtTime = (iso) => UK_FMT_TIME.format(new Date(iso));
   const addDays   = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-  const sameDate  = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const sameDate = (a, b) =>
+  a.getEurope/LondonFullYear()===b.getEurope/LondonFullYear() &&
+  a.getEurope/LondonMonth()===b.getEurope/LondonMonth() &&
+  a.getEurope/LondonDate()===b.getEurope/LondonDate();
 
   async function loadCredits() {
     try {
@@ -38,7 +55,7 @@
 
     // Start with normal filter (no onlyAvailable so the UI isn’t empty),
     // then fallback to debug=bypass if zero.
-    const base = '/api/slots?onlyAvailable=true';
+    const base = '/api/slots';  // ask for all slots; we'll disable booked in UI
 console.log('[book.js] fetching slots from', base);
 
     let res = await fetch(base, { credentials: 'same-origin' });
@@ -47,7 +64,7 @@ console.log('[book.js] fetching slots from', base);
     console.log('[book.js] slots (normal):', slots.length, slots);
 
     if (!slots.length) {
-      res = await fetch(base + '&debug=bypass', { credentials: 'same-origin' });
+      res = await fetch(base + '?debug=bypass', { credentials: 'same-origin' });
       j = await res.json().catch(() => ({}));
       slots = j.slots || [];
       console.log('[book.js] slots (bypass):', slots.length, slots);
@@ -57,7 +74,9 @@ console.log('[book.js] fetching slots from', base);
       id: Number(s.id),
       start_iso: s.start_iso,
       end_iso: s.end_iso,
-      location: s.location || ''
+      location: s.location || '',
+is_booked: Number(s.is_booked) === 1
+	
     }));
 console.log('[book.js] normalized allSlots:', allSlots);
   }
@@ -89,14 +108,9 @@ console.log('[book.js] normalized allSlots:', allSlots);
     const totalDays = 28;
 
     slotsHost.innerHTML = `
-      <div class="cal">
-        <div class="cal-head">
-          <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div>
-          <div>Thu</div><div>Fri</div><div>Sat</div>
-        </div>
-        <div class="cal-grid" id="calGrid"></div>
-      </div>
-    `;
+       <div class="cal-date">${UK_FMT_DAY.format(day)}</div>
+  <div class="cal-month">${UK_FMT_MON.format(day)}</div>
+`;
 
     const grid = qs('#calGrid', slotsHost);
     grid.innerHTML = '';
@@ -124,12 +138,20 @@ console.log('[book.js] normalized allSlots:', allSlots);
         body.innerHTML = `<div class="cal-empty">—</div>`;
       } else {
         list.forEach(s => {
-          const btn = document.createElement('button');
-          btn.className = 'slot-chip';
-          btn.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)}${s.location ? ` • ${s.location}` : ''}`;
-          btn.dataset.id = s.id;
-          btn.addEventListener('click', () => selectSlot(s, btn));
-          body.appendChild(btn);
+          if (s.is_booked) {
+            const tag = document.createElement('div');
+            tag.className = 'slot-chip booked';
+            tag.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)}${s.location ? ` • ${s.location}` : ''} · Booked`;
+            body.appendChild(tag);
+          } else {
+            const btn = document.createElement('button');
+            btn.className = 'slot-chip';
+            btn.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)}${s.location ? ` • ${s.location}` : ''}`;
+            btn.dataset.id = s.id;
+            btn.addEventListener('click', () => selectSlot(s, btn));
+            body.appendChild(btn);
+          }
+        });
         });
       }
 
