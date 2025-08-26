@@ -191,16 +191,43 @@ const pAll = (sql, params = []) => new Promise((resolve, reject) =>
 );
 
 /* ---------- Slot filter & API ---------- */
+// --- helper: extract hour in Europe/London (0-23) ---
+function londonHour(dateLike) {
+  const d = new Date(dateLike);
+  // returns "00".."23"
+  const hStr = new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit', hour12: false, timeZone: 'Europe/London'
+  }).format(d);
+  return Number(hStr);
+}
+// --- helper: day-of-week in Europe/London (0=Sun..6=Sat) ---
+function londonDOW(dateLike) {
+  const d = new Date(dateLike);
+  // Create a date string for Europe/London and read back DOW by constructing a new Date
+  // Simpler: use toLocaleString then new Date — but safer is to compute via hour shift:
+  // We'll just use Intl for weekday short and map; keeps it readable.
+  const w = new Intl.DateTimeFormat('en-GB', {
+    weekday: 'short', timeZone: 'Europe/London'
+  }).format(d); // "Sun".."Sat"
+  return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(w);
+}
+
 function withinCoachingWindow(slot) {
   const norm = s => (s || '').trim().toLowerCase();
   const inRange = (h, a, b) => h >= a && h < b;
-  const d = new Date(slot.start_iso), dow = d.getDay(), h = d.getHours(), loc = norm(slot.location);
+
+  const dow = londonDOW(slot.start_iso);
+  const h   = londonHour(slot.start_iso);
+  const loc = norm(slot.location);
+
+  // Mon (Scunthorpe) 17–21, Tue (Hull) 17–22, Wed (Shipley) 18–22, Thu (Hull) 17–22
   if (dow === 1 && inRange(h, 17, 21)) return !loc || loc.includes('scunthorpe');
   if (dow === 2 && inRange(h, 17, 22)) return !loc || loc.includes('hull');
   if (dow === 3 && inRange(h, 18, 22)) return !loc || loc.includes('shipley');
   if (dow === 4 && inRange(h, 17, 22)) return !loc || loc.includes('hull');
   return false;
 }
+
 
 /* ---------- Public API: slots ---------- */
 app.get('/api/slots', async (req, res) => {
@@ -559,6 +586,17 @@ app.post('/api/admin/maintain-slots', requireAdmin, async (req, res) => {
     if (dow === 4) return 'Hull';
     return null;
   }
+
+// --- build an ISO string representing a given y-m-d h:00 in Europe/London ---
+function londonISO(y, m, d, hour) {
+  // Create the London wall-clock time, then convert to UTC ISO.
+  // Start by guessing UTC, then correct by the London offset at that instant.
+  const guessUTC = new Date(Date.UTC(y, m, d, hour, 0, 0));
+  // What is that instant’s hour in London?
+  const londonHourStr = new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit', hour12: false, timeZone: 'Europe/London'
+  }).format(guessUTC);
+  const londonHourNum = Number(londonHourStr);
 
   try {
     const delRes = await pRun(
