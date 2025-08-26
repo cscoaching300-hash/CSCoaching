@@ -1,25 +1,24 @@
 // public/js/book.js
 (() => {
-  // define $ (alias of qs) so your calls like $('#slots') work
-  const $  = (s, el = document) => el.querySelector(s);
   const qs = (s, el = document) => el.querySelector(s);
 
-  const slotsHost   = $('#slots');         // calendar mounts here
-  const emailInput  = $('#email');
-  const notesInput  = $('#notes');
-  const honeypot    = $('#website');
-  const bookBtn     = $('#bookBtn');
-  const msg         = $('#msg');
-  const creditPill  = $('#creditPill');
+  // Hook up elements (use qs, not $)
+  const slotsHost  = qs('#slots');        // calendar mounts here
+  const emailInput = qs('#email');
+  const notesInput = qs('#notes');
+  const honeypot   = qs('#website');
+  const bookBtn    = qs('#bookBtn');
+  const msg        = qs('#msg');
+  const creditPill = qs('#creditPill');
 
-  let selectedSlot = null; // { id, start_iso, end_iso, location }
-  let allSlots = [];       // normalized slots from API
+  let selectedSlot = null;
+  let allSlots = [];
 
   // --- Utils ---
-  const isoDayKey = iso => new Date(iso).toISOString().slice(0, 10);
-  const fmtTime   = iso => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const isoDayKey = (iso) => new Date(iso).toISOString().slice(0, 10);
+  const fmtTime   = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const addDays   = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-  const sameDate  = (a,b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+  const sameDate  = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
   async function loadCredits() {
     try {
@@ -31,17 +30,26 @@
     } catch {}
   }
 
-  // fetch slots; if empty, try bypass filter (debug=bypass)
   async function fetchSlots() {
-    const base = '/api/slots?onlyAvailable=true';
+    // Look ahead 60 days
+    const to = new Date();
+    to.setDate(to.getDate() + 60);
+    const toStr = to.toISOString().slice(0, 10);
+
+    // Start with normal filter (no onlyAvailable so the UI isn’t empty),
+    // then fallback to debug=bypass if zero.
+    const base = `/api/slots?to=${toStr}`;
+
     let res = await fetch(base, { credentials: 'same-origin' });
     let j = await res.json().catch(() => ({}));
     let slots = j.slots || [];
+    console.log('[book.js] slots (normal):', slots.length, j?.debug || '');
 
     if (!slots.length) {
       res = await fetch(base + '&debug=bypass', { credentials: 'same-origin' });
       j = await res.json().catch(() => ({}));
       slots = j.slots || [];
+      console.log('[book.js] slots (bypass):', slots.length, j?.debug || '');
     }
 
     allSlots = slots.map(s => ({
@@ -52,20 +60,31 @@
     }));
   }
 
-  // Build 2-week calendar from this week's Sunday
   function renderCalendar() {
     if (!slotsHost) return;
 
+    // If still empty, show a friendly message
+    if (!allSlots.length) {
+      slotsHost.innerHTML = `
+        <div class="panel">
+          <h3 style="margin:0 0 6px">No sessions found</h3>
+          <div class="muted">We couldn’t find sessions in the next 60 days. If you recently added slots, try Admin → Maintain slots and refresh.</div>
+        </div>`;
+      return;
+    }
+
+    // Group by day
     const byDay = {};
     allSlots.forEach(s => {
       const k = isoDayKey(s.start_iso);
       (byDay[k] = byDay[k] || []).push(s);
     });
 
+    // Render 4 weeks from this Sunday
     const today = new Date();
     const weekStart = new Date(today);
     weekStart.setDate(today.getDate() - today.getDay()); // Sunday
-    const totalDays = 14;
+    const totalDays = 28;
 
     slotsHost.innerHTML = `
       <div class="cal">
@@ -77,13 +96,13 @@
       </div>
     `;
 
-    const grid = $('#calGrid', slotsHost);
+    const grid = qs('#calGrid', slotsHost);
     grid.innerHTML = '';
 
     for (let i = 0; i < totalDays; i++) {
       const day = addDays(weekStart, i);
       const key = day.toISOString().slice(0, 10);
-      const list = (byDay[key] || []).sort((a,b) => new Date(a.start_iso) - new Date(b.start_iso));
+      const list = (byDay[key] || []).sort((a, b) => new Date(a.start_iso) - new Date(b.start_iso));
 
       const cell = document.createElement('div');
       cell.className = 'cal-cell';
@@ -91,8 +110,8 @@
       const head = document.createElement('div');
       head.className = 'cal-cell-head';
       head.innerHTML = `
-        <div class="cal-date">${day.toLocaleDateString([], { day: '2-digit' })}</div>
-        <div class="cal-month">${day.toLocaleDateString([], { month: 'short' })}</div>
+        <div class="cal-date">${day.toLocaleDateString([], { day:'2-digit' })}</div>
+        <div class="cal-month">${day.toLocaleDateString([], { month:'short' })}</div>
       `;
       if (sameDate(day, today)) head.classList.add('today');
 
@@ -124,8 +143,9 @@
     btnEl.classList.add('selected');
     if (bookBtn) bookBtn.disabled = false;
     if (msg) {
-      msg.textContent =
-        `Selected: ${new Date(slot.start_iso).toLocaleString([], { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })} @ ${slot.location || 'CSCoaching'}`;
+      msg.textContent = `Selected: ${new Date(slot.start_iso).toLocaleString([], {
+        weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'
+      })} @ ${slot.location || 'CSCoaching'}`;
     }
   }
 
@@ -173,7 +193,7 @@
     }
   }
 
-  // init
+  // Init
   window.addEventListener('DOMContentLoaded', async () => {
     if (slotsHost) {
       slotsHost.innerHTML = '<div class="skel" style="height:140px"></div>';
@@ -184,3 +204,4 @@
     if (bookBtn) bookBtn.addEventListener('click', handleBooking);
   });
 })();
+
