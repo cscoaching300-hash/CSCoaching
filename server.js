@@ -572,6 +572,7 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
 app.post('/api/admin/maintain-slots', requireAdmin, async (req, res) => {
   const days = Math.max(1, Math.min(31, Number(req.query.days || 14)));
 
+  // Which hours & location per day-of-week
   function hoursForDay(dow) {
     if (dow === 1) return [17,18,19,20];        // Mon Scunthorpe
     if (dow === 2) return [17,18,19,20,21];     // Tue Hull
@@ -587,54 +588,68 @@ app.post('/api/admin/maintain-slots', requireAdmin, async (req, res) => {
     return null;
   }
 
-// --- build an ISO string representing a given y-m-d h:00 in Europe/London ---
-function londonISO(y, m, d, hour) {
-  // Create the London wall-clock time, then convert to UTC ISO.
-  // Start by guessing UTC, then correct by the London offset at that instant.
-  const guessUTC = new Date(Date.UTC(y, m, d, hour, 0, 0));
-  // What is that instant’s hour in London?
-  const londonHourStr = new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit', hour12: false, timeZone: 'Europe/London'
-  }).format(guessUTC);
-  const londonHourNum = Number(londonHourStr);
+  // Build ISO string for y-m-d at a *London* wall-clock hour
+  function londonISO(y, m, d, hour) {
+    const guessUTC = new Date(Date.UTC(y, m, d, hour, 0, 0));
+
+    const londonHourStr = new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit', hour12: false, timeZone: 'Europe/London'
+    }).format(guessUTC);
+
+    const londonHourNum = Number(londonHourStr);
+    const diffHours = hour - londonHourNum;
+    guessUTC.setUTCHours(guessUTC.getUTCHours() + diffHours);
+
+    return guessUTC.toISOString();
+  }
 
   try {
+    // Purge past, unbooked slots
     const delRes = await pRun(
       `DELETE FROM slots
        WHERE is_booked = 0 AND datetime(end_iso) < datetime('now')`,
       []
     );
-    let purged = delRes.changes || 0;
+    const purged = delRes.changes || 0;
 
     let created = 0;
     const base = new Date();
     for (let i = 0; i < days; i++) {
       const d = new Date(base);
       d.setDate(base.getDate() + i);
+
       const dow = d.getDay();
-
       const hours = hoursForDay(dow);
-      const loc = defaultLocation(dow);
-      for (const h of hours) {
-        const start = new Date(d); start.setHours(h,0,0,0);
-        const end   = new Date(start.getTime() + 60*60*1000);
+      const loc   = defaultLocation(dow);
+      if (!hours.length) continue;
 
-        const exists = await pGet(`SELECT id FROM slots WHERE start_iso = ?`, [start.toISOString()]);
+      const y = d.getUTCFullYear();
+      const m = d.getUTCMonth();
+      const dayNum = d.getUTCDate();
+
+      for (const h of hours) {
+        const startISO = londonISO(y, m, dayNum, h);
+        const endISO   = londonISO(y, m, dayNum, h + 1);
+
+        const exists = await pGet(`SELECT id FROM slots WHERE start_iso = ?`, [startISO]);
         if (!exists) {
           await pRun(
-            `INSERT INTO slots (start_iso, end_iso, location, is_booked) VALUES (?,?,?,0)`,
-            [start.toISOString(), end.toISOString(), loc]
+            `INSERT INTO slots (start_iso, end_iso, location, is_booked)
+             VALUES (?,?,?,0)`,
+            [startISO, endISO, loc]
           );
           created++;
         }
       }
     }
+
     res.json({ ok: true, purged, created });
   } catch (e) {
-    console.error(e);
+    console.error('POST /api/admin/maintain-slots error:', e);
     res.status(500).json({ error: 'DB_ERROR' });
   }
 });
+
 
 /* -------- Member: Cancel their own booking (refund only if >24h) -------- */
 app.post('/api/member/bookings/:id/cancel', requireMember, async (req, res) => {
