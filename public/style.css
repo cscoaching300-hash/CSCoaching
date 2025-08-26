@@ -274,6 +274,8 @@ body { background:#0b0b0b; color:#eee; font-family: Inter, system-ui, sans-serif
   border-color: #e02424;
   box-shadow: 0 0 0 2px rgba(224,36,36,.25);
 }
+/* in style.css */
+.slot-chip.booked { opacity: .6; cursor: default; }
 
 
 
