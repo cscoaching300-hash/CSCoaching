@@ -38,18 +38,19 @@
 
     // Start with normal filter (no onlyAvailable so the UI isn’t empty),
     // then fallback to debug=bypass if zero.
-    const base = `/api/slots?to=${toStr}`;
+    const base = '/api/slots?onlyAvailable=true';
+console.log('[book.js] fetching slots from', base);
 
     let res = await fetch(base, { credentials: 'same-origin' });
     let j = await res.json().catch(() => ({}));
     let slots = j.slots || [];
-    console.log('[book.js] slots (normal):', slots.length, j?.debug || '');
+    console.log('[book.js] slots (normal):', slots.length, slots);
 
     if (!slots.length) {
       res = await fetch(base + '&debug=bypass', { credentials: 'same-origin' });
       j = await res.json().catch(() => ({}));
       slots = j.slots || [];
-      console.log('[book.js] slots (bypass):', slots.length, j?.debug || '');
+      console.log('[book.js] slots (bypass):', slots.length, slots);
     }
 
     allSlots = slots.map(s => ({
@@ -58,6 +59,7 @@
       end_iso: s.end_iso,
       location: s.location || ''
     }));
+console.log('[book.js] normalized allSlots:', allSlots);
   }
 
   function renderCalendar() {
