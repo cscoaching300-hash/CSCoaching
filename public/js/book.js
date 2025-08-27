@@ -6,18 +6,12 @@
   const FMT_TIME = new Intl.DateTimeFormat('en-GB', {
     hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ
   });
-  const FMT_DAY = new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit', timeZone: TZ
-  });
-  const FMT_MON = new Intl.DateTimeFormat('en-GB', {
-    month: 'short', timeZone: TZ
-  });
+  const FMT_DAY = new Intl.DateTimeFormat('en-GB', { day: '2-digit', timeZone: TZ });
+  const FMT_MON = new Intl.DateTimeFormat('en-GB', { month: 'short', timeZone: TZ });
   const FMT_YMD_PARTS = new Intl.DateTimeFormat('en-GB', {
     year: 'numeric', month: '2-digit', day: '2-digit', timeZone: TZ
   });
-  const FMT_WD = new Intl.DateTimeFormat('en-GB', {
-    weekday: 'short', timeZone: TZ
-  });
+  const FMT_WD = new Intl.DateTimeFormat('en-GB', { weekday: 'short', timeZone: TZ });
 
   /* ---------- Helpers for YYYY-MM-DD in London ---------- */
   const partsFromDate = (d) =>
@@ -63,7 +57,8 @@
   const msg        = qs('#msg');
   const creditPill = qs('#creditPill');
 
-  let selectedSlot = null;
+  // 🔥 Multi-select (max 2)
+  let selectedSlots = [];   // array of { id, start_iso, end_iso, location }
   let allSlots = [];
 
   /* ---------- API helpers ---------- */
@@ -99,141 +94,204 @@
     }));
   }
 
-// ---- Calendar rendering ----
-function renderCalendar() {
-  if (!slotsHost) return;
+  /* ---------- Calendar rendering ---------- */
+  function renderCalendar() {
+    if (!slotsHost) return;
 
-  if (!allSlots.length) {
+    if (!allSlots.length) {
+      slotsHost.innerHTML = `
+        <div class="panel">
+          <h3 style="margin:0 0 6px">No sessions found</h3>
+          <div class="muted">We couldn’t find sessions in the upcoming range.</div>
+        </div>`;
+      return;
+    }
+
+    // group by local day
+    const byDay = {};
+    allSlots.forEach(s => {
+      const k = keyFromISO(s.start_iso);
+      (byDay[k] = byDay[k] || []).push(s);
+    });
+
+    const today = new Date();
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay()); // Sunday in local tz
+    const totalDays = 28; // 4 weeks
+
+    // One single grid: first row is headers, rest are cells
     slotsHost.innerHTML = `
-      <div class="panel">
-        <h3 style="margin:0 0 6px">No sessions found</h3>
-        <div class="muted">We couldn’t find sessions in the upcoming range.</div>
-      </div>`;
-    return;
-  }
-
-  // group by local day
-  const byDay = {};
-  allSlots.forEach(s => {
-    const k = keyFromISO(s.start_iso);
-    (byDay[k] = byDay[k] || []).push(s);
-  });
-
-  const today = new Date();
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - today.getDay()); // Sunday in local tz
-  const totalDays = 28; // 4 weeks
-
-  // One single grid: first row is headers, rest are cells
-  slotsHost.innerHTML = `
-    <div class="cal">
-      <div class="cal-grid" id="calGrid"></div>
-    </div>
-  `;
-
-  const grid = qs('#calGrid', slotsHost);
-  grid.innerHTML = '';
-
-  // Header row
-  ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => {
-    const h = document.createElement('div');
-    h.className = 'cal-head-cell';
-    h.textContent = d;
-    grid.appendChild(h);
-  });
-
-  // Day cells
-  for (let i = 0; i < totalDays; i++) {
-    const day = addDays(weekStart, i);
-    const key = keyFromDate(day);
-    const list = (byDay[key] || []).sort((a, b) => new Date(a.start_iso) - new Date(b.start_iso));
-
-    const cell = document.createElement('div');
-    cell.className = 'cal-cell';
-
-    const head = document.createElement('div');
-    head.className = 'cal-cell-head';
-    head.innerHTML = `
-      <div class="cal-date">${FMT_DAY.format(day)}</div>
-      <div class="cal-month">${FMT_MON.format(day)}</div>
+      <div class="cal">
+        <div class="cal-grid" id="calGrid"></div>
+      </div>
     `;
-    if (sameLocalDay(day, today)) head.classList.add('today');
 
-    const body = document.createElement('div');
-    body.className = 'cal-cell-body';
+    const grid = qs('#calGrid', slotsHost);
+    grid.innerHTML = '';
 
-    if (!list.length) {
-      body.innerHTML = `<div class="cal-empty">—</div>`;
+    // Header row
+    ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => {
+      const h = document.createElement('div');
+      h.className = 'cal-head-cell';
+      h.textContent = d;
+      grid.appendChild(h);
+    });
+
+    // Day cells
+    for (let i = 0; i < totalDays; i++) {
+      const day = addDays(weekStart, i);
+      const key = keyFromDate(day);
+      const list = (byDay[key] || []).sort((a, b) => new Date(a.start_iso) - new Date(b.start_iso));
+
+      const cell = document.createElement('div');
+      cell.className = 'cal-cell';
+
+      const head = document.createElement('div');
+      head.className = 'cal-cell-head';
+      head.innerHTML = `
+        <div class="cal-date">${FMT_DAY.format(day)}</div>
+        <div class="cal-month">${FMT_MON.format(day)}</div>
+      `;
+      if (sameLocalDay(day, today)) head.classList.add('today');
+
+      const body = document.createElement('div');
+      body.className = 'cal-cell-body';
+
+      if (!list.length) {
+        body.innerHTML = `<div class="cal-empty">—</div>`;
+      } else {
+        list.forEach(s => {
+          if (s.is_booked) {
+            const tag = document.createElement('div');
+            tag.className = 'slot-chip booked';
+            tag.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)}${s.location ? ` • ${s.location}` : ''} · Booked`;
+            body.appendChild(tag);
+          } else {
+            const btn = document.createElement('button');
+            btn.className = 'slot-chip';
+            btn.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)}${s.location ? ` • ${s.location}` : ''}`;
+            btn.dataset.id = s.id;
+            // reflect current selections
+            if (selectedSlots.find(sel => sel.id === s.id)) btn.classList.add('selected');
+            btn.addEventListener('click', () => toggleSlot(s, btn));
+            body.appendChild(btn);
+          }
+        });
+      }
+
+      cell.appendChild(head);
+      cell.appendChild(body);
+      grid.appendChild(cell);
+    }
+
+    // button state
+    if (bookBtn) bookBtn.disabled = selectedSlots.length === 0;
+  }
+
+  /* ---------- Selection (max 2) ---------- */
+  function toggleSlot(slot, btnEl) {
+    const existingIndex = selectedSlots.findIndex(s => s.id === slot.id);
+
+    if (existingIndex >= 0) {
+      // deselect
+      selectedSlots.splice(existingIndex, 1);
+      btnEl.classList.remove('selected');
     } else {
-      list.forEach(s => {
-        if (s.is_booked) {
-          const tag = document.createElement('div');
-          tag.className = 'slot-chip booked';
-          tag.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)}${s.location ? ` • ${s.location}` : ''} · Booked`;
-          body.appendChild(tag);
-        } else {
-          const btn = document.createElement('button');
-          btn.className = 'slot-chip';
-          btn.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)}${s.location ? ` • ${s.location}` : ''}`;
-          btn.dataset.id = s.id;
-          btn.addEventListener('click', () => selectSlot(s, btn));
-          body.appendChild(btn);
-        }
-      });
+      // add (cap at 2)
+      if (selectedSlots.length >= 2) {
+        // remove oldest
+        const removed = selectedSlots.shift();
+        // remove .selected from the chip in DOM
+        document.querySelectorAll('.slot-chip.selected').forEach(el => {
+          if (Number(el.dataset.id) === removed.id) el.classList.remove('selected');
+        });
+      }
+      selectedSlots.push(slot);
+      btnEl.classList.add('selected');
     }
 
-    cell.appendChild(head);
-    cell.appendChild(body);
-    grid.appendChild(cell);
-  }
-}
+    // update helper text + button enabled
+    if (bookBtn) bookBtn.disabled = selectedSlots.length === 0;
 
-
-  /* ---------- Selection & booking ---------- */
-  function selectSlot(slot, btnEl) {
-    selectedSlot = slot;
-    document.querySelectorAll('.slot-chip.selected').forEach(el => el.classList.remove('selected'));
-    btnEl.classList.add('selected');
-    if (bookBtn) bookBtn.disabled = false;
     if (msg) {
-      msg.textContent = `Selected: ${new Date(slot.start_iso).toLocaleString('en-GB', {
-        timeZone: TZ,
-        weekday: 'short', month: 'short', day: 'numeric',
-        hour: '2-digit', minute: '2-digit', hour12: false
-      })} @ ${slot.location || 'CSCoaching'}`;
+      if (!selectedSlots.length) {
+        msg.textContent = '';
+      } else {
+        msg.textContent = 'Selected: ' + selectedSlots.map(s =>
+          new Date(s.start_iso).toLocaleString('en-GB', {
+            timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit', hour12: false
+          }) + ` @ ${s.location || 'CSCoaching'}`
+        ).join(' + ');
+      }
     }
   }
 
+  /* ---------- Booking (bulk with fallback) ---------- */
   async function handleBooking() {
     if (!msg) return;
     msg.textContent = '';
-    if (!selectedSlot) { msg.textContent = 'Pick a slot from the calendar first.'; return; }
+
+    if (!selectedSlots.length) { msg.textContent = 'Pick at least one slot.'; return; }
     const email = (emailInput?.value || '').trim().toLowerCase();
     if (!email) { msg.textContent = 'Please enter your email.'; return; }
     if (honeypot?.value) { msg.textContent = 'Spam detected.'; return; }
 
     if (bookBtn) bookBtn.disabled = true;
     msg.textContent = 'Booking…';
+
     try {
-      const payload = {
-        slot_id: selectedSlot.id,
+      // Try bulk API first
+      const bulkPayload = {
+        slot_ids: selectedSlots.map(s => s.id),
         email,
         notes: (notesInput?.value || '').trim(),
         website: honeypot?.value || ''
       };
-      const r = await fetch('/api/book', {
+
+      let r = await fetch('/api/book', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(bulkPayload)
       });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.ok) {
-        msg.textContent = j.error || 'Sorry, something went wrong.';
-        return;
+
+      // If bulk not supported, fall back to sequential single-slot posts
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        const looksLikeSingleOnly = j?.error === 'MISSING_FIELDS' || j?.error === 'BAD_BODY' || j?.error === 'UNKNOWN_FIELD';
+
+        if (looksLikeSingleOnly || selectedSlots.length > 1) {
+          for (const s of selectedSlots) {
+            const singlePayload = {
+              slot_id: s.id,
+              email,
+              notes: (notesInput?.value || '').trim(),
+              website: honeypot?.value || ''
+            };
+            const r1 = await fetch('/api/book', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'same-origin',
+              body: JSON.stringify(singlePayload)
+            });
+            const j1 = await r1.json().catch(() => ({}));
+            if (!r1.ok || !j1.ok) {
+              msg.textContent = j1.error || 'Sorry, something went wrong.';
+              if (bookBtn) bookBtn.disabled = false;
+              return;
+            }
+          }
+        } else {
+          // some other error
+          msg.textContent = j?.error || 'Sorry, something went wrong.';
+          if (bookBtn) bookBtn.disabled = false;
+          return;
+        }
       }
+
       msg.textContent = 'Success! Check your email for confirmation.';
-      selectedSlot = null;
+      selectedSlots = [];
       if (emailInput) emailInput.value = '';
       if (notesInput) notesInput.value = '';
       await fetchSlots();

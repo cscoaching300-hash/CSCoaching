@@ -7,9 +7,9 @@
   <link rel="stylesheet" href="/style.css?v=20250823">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <!-- bump version to hard-bust cache -->
+  <!-- scripts -->
   <script src="/js/site.js?v=2" defer></script>
-  <script src="/js/book.js?v=7" defer></script>
+  <script src="/js/book.js?v=9" defer></script>
 </head>
 <body>
   <!-- Shared Navigation -->
@@ -25,6 +25,9 @@
       <div class="book-topbar__left">
         <h1 class="h1">Available sessions</h1>
         <div class="muted">Next 14 days · 1 hour each · Mon–Thu only</div>
+        <div class="muted" style="margin-top:6px;font-size:12px;">
+          Select up to <strong>2</strong> slots — click again to deselect.
+        </div>
       </div>
 
       <div class="book-topbar__controls">
@@ -43,7 +46,7 @@
         <!-- Spam honeypot -->
         <input type="text" id="website" autocomplete="off" style="position:absolute;left:-9999px;top:-9999px;">
         
-        <button id="bookBtn" class="btn" disabled>Book selected slot</button>
+        <button id="bookBtn" class="btn" disabled>Book selected slot(s)</button>
         <div id="msg" class="muted" style="min-height:1.2rem;"></div>
       </div>
     </div>
@@ -56,6 +59,4 @@
   </main>
 </body>
 </html>
-
-
 
