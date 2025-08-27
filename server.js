@@ -295,12 +295,16 @@ app.get('/api/slots', async (req, res) => {
       return `${parts.year}-${parts.month}-${parts.day}`;
     };
 
-    // business rule filter (unless showAll or debug=bypass)
+        // business rule filter (unless showAll or debug=bypass)
     let filtered = rows;
     if (!showAll && debug !== 'bypass') {
       filtered = rows.filter(withinCoachingWindow);
       if (filtered.length === 0 && rows.length > 0) filtered = rows;
     }
+
+    // universal cleanup: remove 22:00–23:00 starts
+    filtered = filtered.filter(s => londonHour(s.start_iso) !== 22);
+
 
     // exclude any slots that fall on a holiday day
     filtered = filtered.filter(s => !holiSet.has(keyFromISO(s.start_iso)));
