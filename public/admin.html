@@ -58,6 +58,43 @@
       </div>
     </section>
 
+<section class="card" style="margin-top:16px;">
+  <h2>Slots Manager</h2>
+
+  <div class="row" style="align-items:center; gap:10px; flex-wrap:wrap;">
+    <label>From <input type="date" id="sFrom"></label>
+    <label>To <input type="date" id="sTo"></label>
+    <button class="btn outline" id="sLoad">Load</button>
+    <span class="muted" id="sInfo"></span>
+  </div>
+
+  <div style="margin-top:10px; overflow:auto;">
+    <table class="table" id="sTable">
+      <thead>
+        <tr>
+          <th>ID</th><th>Start (local)</th><th>End (local)</th><th>Location</th><th>Booked</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <hr style="border-color:#1a1a1a;">
+
+  <h3>Bulk create</h3>
+  <div class="row" style="gap:8px; flex-wrap:wrap;">
+    <label>From <input type="date" id="bFrom"></label>
+    <label>To <input type="date" id="bTo"></label>
+    <label>Weekdays (Mon=1..Sun=0) <input id="bDays" placeholder="1,2,3,4"></label>
+    <label>Hours (24h, comma) <input id="bHours" placeholder="17,18,19,20"></label>
+    <label>Duration (min) <input id="bDur" type="number" value="60" min="15" max="240"></label>
+    <label>Location <input id="bLoc" placeholder="Hull"></label>
+    <button class="btn" id="bRun">Create</button>
+    <span class="muted" id="bMsg"></span>
+  </div>
+</section>
+
+
     <!-- Quick actions -->
     <section class="card">
       <h2>Quick actions</h2>

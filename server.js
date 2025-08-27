@@ -234,9 +234,16 @@ app.get('/api/slots', async (req, res) => {
   try {
     const onlyAvailable = String(req.query.onlyAvailable || '').toLowerCase() === 'true';
     const debug = (req.query.debug || '').toString().toLowerCase();
+
+    // windows
     const now = new Date();
     const startReq = req.query.from ? new Date(req.query.from + 'T00:00:00Z') : now;
-    const hardEnd = new Date(now); hardEnd.setDate(hardEnd.getDate() + 14);
+
+    // allow caller to extend window (admin UI uses up to 120)
+    const maxDays = Math.max(1, Math.min(180, Number(req.query.maxDays || 14)));
+    const hardEnd = new Date(now);
+    hardEnd.setDate(hardEnd.getDate() + maxDays);
+
     const endReq = req.query.to ? new Date(req.query.to + 'T23:59:59Z') : hardEnd;
     const end = endReq < hardEnd ? endReq : hardEnd;
 
@@ -244,14 +251,36 @@ app.get('/api/slots', async (req, res) => {
     const params = [startReq.toISOString(), end.toISOString()];
     if (onlyAvailable) where += ` AND is_booked=0`;
 
-    const rows = await pAll(`SELECT id,start_iso,end_iso,is_booked,location FROM slots ${where} ORDER BY start_iso ASC`, params);
+    const rows = await pAll(
+      `SELECT id,start_iso,end_iso,is_booked,location
+         FROM slots
+        ${where}
+        ORDER BY start_iso ASC`, params
+    );
+
+    // keep your Mon–Thu location/time business rules unless debug=bypass
     let filtered = (debug === 'bypass') ? rows : rows.filter(withinCoachingWindow);
     if (filtered.length === 0 && rows.length > 0 && debug !== 'bypass') filtered = rows;
 
-    if (debug) return res.json({ ok: true, debug: { window: { from: params[0], to: params[1] }, onlyAvailable, totalRows: rows.length, afterFilter: filtered.length }, slots: filtered });
+    if (debug) {
+      return res.json({
+        ok: true,
+        debug: {
+          window: { from: params[0], to: params[1] },
+          onlyAvailable,
+          totalRows: rows.length,
+          afterFilter: filtered.length
+        },
+        slots: filtered
+      });
+    }
     res.json({ ok: true, slots: filtered });
-  } catch (e) { console.error(e); res.status(500).json({ error: 'SERVER_ERROR' }); }
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'SERVER_ERROR' });
+  }
 });
+
 
 /* ---------- Booking (no login needed) ---------- */
 app.post('/api/book', async (req, res) => {
@@ -646,6 +675,123 @@ app.post('/api/admin/maintain-slots', requireAdmin, async (req, res) => {
     res.json({ ok: true, purged, created });
   } catch (e) {
     console.error('POST /api/admin/maintain-slots error:', e);
+    res.status(500).json({ error: 'DB_ERROR' });
+  }
+});
+
+/* ---------- ADMIN: Update an unbooked slot (start/location/duration) ---------- */
+app.patch('/api/admin/slots/:id', requireAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'BAD_ID' });
+
+    const { start_iso, location, duration_minutes } = req.body || {};
+    if (!start_iso && !location && !duration_minutes) {
+      return res.status(400).json({ error: 'NO_FIELDS' });
+    }
+
+    // Only allow editing if slot is not booked
+    const slot = await pGet(`SELECT id, is_booked, start_iso, end_iso FROM slots WHERE id=?`, [id]);
+    if (!slot) return res.status(404).json({ error: 'NOT_FOUND' });
+    if (Number(slot.is_booked)) return res.status(400).json({ error: 'BOOKED_SLOT' });
+
+    // Compute new start/end
+    const newStart = start_iso ? new Date(start_iso) : new Date(slot.start_iso);
+    const durMin = Number.isFinite(Number(duration_minutes)) ? Number(duration_minutes) : 60;
+    const newEnd = new Date(newStart.getTime() + durMin * 60 * 1000);
+
+    // Avoid duplicates on start_iso (simple uniqueness by start time)
+    const dup = await pGet(
+      `SELECT id FROM slots WHERE start_iso=? AND id<>?`,
+      [newStart.toISOString(), id]
+    );
+    if (dup) return res.status(409).json({ error: 'DUPLICATE_START' });
+
+    await pRun(
+      `UPDATE slots
+          SET start_iso = ?,
+              end_iso   = ?,
+              location  = COALESCE(?, location)
+        WHERE id = ?`,
+      [newStart.toISOString(), newEnd.toISOString(), (location ?? null), id]
+    );
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('PATCH /api/admin/slots/:id error:', e);
+    res.status(500).json({ error: 'DB_ERROR' });
+  }
+});
+/* ---------- ADMIN: Bulk create slots ---------- */
+/*
+  Body:
+  {
+    from: "YYYY-MM-DD",
+    to: "YYYY-MM-DD",
+    weekdays: [1,2,3,4],      // Mon=1 .. Sun=0
+    hours: [17,18,19,20],     // London wall-clock hours (24h)
+    duration_minutes: 60,
+    location: "Hull"
+  }
+*/
+app.post('/api/admin/slots/bulk', requireAdmin, async (req, res) => {
+  try {
+    const { from, to, weekdays, hours, duration_minutes, location } = req.body || {};
+
+    if (!from || !to) return res.status(400).json({ error: 'MISSING_RANGE' });
+    const wd = Array.isArray(weekdays) ? weekdays.map(Number) : [];
+    const hh = Array.isArray(hours)    ? hours.map(Number)    : [];
+    const dur = Number.isFinite(Number(duration_minutes)) ? Number(duration_minutes) : 60;
+
+    if (!wd.length || !hh.length) return res.status(400).json({ error: 'MISSING_PATTERN' });
+
+    const startDay = new Date(from + 'T00:00:00Z');
+    const endDay   = new Date(to   + 'T23:59:59Z');
+    if (!(startDay < endDay)) return res.status(400).json({ error: 'BAD_RANGE' });
+
+    // helper: build ISO for a given y-m-d h:00 in Europe/London
+    function londonISO(y, m, d, hour) {
+      const guessUTC = new Date(Date.UTC(y, m, d, hour, 0, 0));
+      const londonHourStr = new Intl.DateTimeFormat('en-GB', {
+        hour: '2-digit', hour12: false, timeZone: 'Europe/London'
+      }).format(guessUTC);
+      const londonHourNum = Number(londonHourStr);
+      const diffHours = hour - londonHourNum;
+      guessUTC.setUTCHours(guessUTC.getUTCHours() + diffHours);
+      return guessUTC.toISOString();
+    }
+    const londonWeekday = (dateLike) => {
+      const w = new Intl.DateTimeFormat('en-GB', {
+        weekday: 'short', timeZone: 'Europe/London'
+      }).format(new Date(dateLike));
+      return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(w);
+    };
+
+    let created = 0, skipped = 0;
+    for (let t = new Date(startDay); t <= endDay; t.setUTCDate(t.getUTCDate() + 1)) {
+      const y = t.getUTCFullYear(), m = t.getUTCMonth(), d = t.getUTCDate();
+      const dow = londonWeekday(t); // 0..6 in London
+      if (!wd.includes(dow)) continue;
+
+      for (const h of hh) {
+        const startISO = londonISO(y, m, d, h);
+        const endISO   = londonISO(y, m, d, h + Math.max(1, Math.round(dur/60)));
+
+        const exists = await pGet(`SELECT id FROM slots WHERE start_iso = ?`, [startISO]);
+        if (exists) { skipped++; continue; }
+
+        await pRun(
+          `INSERT INTO slots (start_iso, end_iso, location, is_booked)
+           VALUES (?,?,?,0)`,
+          [startISO, endISO, location || null]
+        );
+        created++;
+      }
+    }
+
+    res.json({ ok: true, created, skipped });
+  } catch (e) {
+    console.error('POST /api/admin/slots/bulk error:', e);
     res.status(500).json({ error: 'DB_ERROR' });
   }
 });
