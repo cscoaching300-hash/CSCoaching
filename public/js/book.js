@@ -99,87 +99,95 @@
     }));
   }
 
-  /* ---------- Calendar rendering ---------- */
-  function renderCalendar() {
-    if (!slotsHost) return;
+// ---- Calendar rendering ----
+function renderCalendar() {
+  if (!slotsHost) return;
 
-    if (!allSlots.length) {
-      slotsHost.innerHTML = `
-        <div class="panel">
-          <h3 style="margin:0 0 6px">No sessions found</h3>
-          <div class="muted">We couldn’t find sessions in the upcoming range.</div>
-        </div>`;
-      return;
-    }
-
-    // group by London local day
-    const byDay = {};
-    allSlots.forEach(s => {
-      const k = keyFromISO(s.start_iso);
-      (byDay[k] = byDay[k] || []).push(s);
-    });
-
-    const today = new Date();
-    const weekStart = londonWeekStart(today); // Sunday in London
-    const totalDays = 28; // 4 weeks
-
+  if (!allSlots.length) {
     slotsHost.innerHTML = `
-      <div class="cal">
-        <div class="cal-head">
-          <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div>
-          <div>Thu</div><div>Fri</div><div>Sat</div>
-        </div>
-        <div class="cal-grid" id="calGrid"></div>
-      </div>
-    `;
-
-    const grid = qs('#calGrid', slotsHost);
-    grid.innerHTML = '';
-
-    for (let i = 0; i < totalDays; i++) {
-      const day = addDays(weekStart, i);
-      const key = keyFromDate(day);
-      const list = (byDay[key] || []).sort((a, b) => new Date(a.start_iso) - new Date(b.start_iso));
-
-      const cell = document.createElement('div');
-      cell.className = 'cal-cell';
-
-      const head = document.createElement('div');
-      head.className = 'cal-cell-head';
-      head.innerHTML = `
-        <div class="cal-date">${FMT_DAY.format(day)}</div>
-        <div class="cal-month">${FMT_MON.format(day)}</div>
-      `;
-      if (sameLocalDay(day, today)) head.classList.add('today');
-
-      const body = document.createElement('div');
-      body.className = 'cal-cell-body';
-
-      if (!list.length) {
-        body.innerHTML = `<div class="cal-empty">—</div>`;
-      } else {
-        list.forEach(s => {
-          if (s.is_booked) {
-            const tag = document.createElement('div');
-            tag.className = 'slot-chip booked';
-            tag.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)}${s.location ? ` • ${s.location}` : ''} · Booked`;
-            body.appendChild(tag);
-          } else {
-            const btn = document.createElement('button');
-            btn.className = 'slot-chip';
-            btn.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)}${s.location ? ` • ${s.location}` : ''}`;
-            btn.dataset.id = s.id;
-            btn.addEventListener('click', () => selectSlot(s, btn));
-            body.appendChild(btn);
-          }
-        });
-      }
-
-      cell.appendChild(head);
-      cell.appendChild(body);
-      grid.appendChild(cell);
-    }
+      <div class="panel">
+        <h3 style="margin:0 0 6px">No sessions found</h3>
+        <div class="muted">We couldn’t find sessions in the upcoming range.</div>
+      </div>`;
+    return;
   }
+
+  // group by local day
+  const byDay = {};
+  allSlots.forEach(s => {
+    const k = keyFromISO(s.start_iso);
+    (byDay[k] = byDay[k] || []).push(s);
+  });
+
+  const today = new Date();
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay()); // Sunday in local tz
+  const totalDays = 28; // 4 weeks
+
+  // One single grid: first row is headers, rest are cells
+  slotsHost.innerHTML = `
+    <div class="cal">
+      <div class="cal-grid" id="calGrid"></div>
+    </div>
+  `;
+
+  const grid = qs('#calGrid', slotsHost);
+  grid.innerHTML = '';
+
+  // Header row
+  ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => {
+    const h = document.createElement('div');
+    h.className = 'cal-head-cell';
+    h.textContent = d;
+    grid.appendChild(h);
+  });
+
+  // Day cells
+  for (let i = 0; i < totalDays; i++) {
+    const day = addDays(weekStart, i);
+    const key = keyFromDate(day);
+    const list = (byDay[key] || []).sort((a, b) => new Date(a.start_iso) - new Date(b.start_iso));
+
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell';
+
+    const head = document.createElement('div');
+    head.className = 'cal-cell-head';
+    head.innerHTML = `
+      <div class="cal-date">${FMT_DAY.format(day)}</div>
+      <div class="cal-month">${FMT_MON.format(day)}</div>
+    `;
+    if (sameLocalDay(day, today)) head.classList.add('today');
+
+    const body = document.createElement('div');
+    body.className = 'cal-cell-body';
+
+    if (!list.length) {
+      body.innerHTML = `<div class="cal-empty">—</div>`;
+    } else {
+      list.forEach(s => {
+        if (s.is_booked) {
+          const tag = document.createElement('div');
+          tag.className = 'slot-chip booked';
+          tag.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)}${s.location ? ` • ${s.location}` : ''} · Booked`;
+          body.appendChild(tag);
+        } else {
+          const btn = document.createElement('button');
+          btn.className = 'slot-chip';
+          btn.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)}${s.location ? ` • ${s.location}` : ''}`;
+          btn.dataset.id = s.id;
+          btn.addEventListener('click', () => selectSlot(s, btn));
+          body.appendChild(btn);
+        }
+      });
+    }
+
+    cell.appendChild(head);
+    cell.appendChild(body);
+    grid.appendChild(cell);
+  }
+}
+
 
   /* ---------- Selection & booking ---------- */
   function selectSlot(slot, btnEl) {

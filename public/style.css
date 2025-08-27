@@ -381,16 +381,13 @@ body { background:#0b0b0b; color:#eee; font-family: Inter, system-ui, sans-serif
   gap: 10px;
 }
 
+/* Header row */
 .cal-head {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
-  color: #bdbdbd;
-  font-weight: 600;
-  text-align: center;
+  display: contents;              /* share the same grid columns as .cal-grid */
 }
 
-.cal-grid {
+/* Grid for days */
+..cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 8px;
@@ -404,6 +401,7 @@ body { background:#0b0b0b; color:#eee; font-family: Inter, system-ui, sans-serif
   .cal-grid { grid-template-columns: 1fr; }
 }
 
+/* Cells */
 .cal-cell {
   background: #0e0f12;
   border: 1px solid #1d1e22;
@@ -412,14 +410,21 @@ body { background:#0b0b0b; color:#eee; font-family: Inter, system-ui, sans-serif
   min-height: 120px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 
-/* calendar shell */
-.cal { display:grid; gap:8px; }
-.cal-head { display:grid; grid-template-columns:repeat(7,1fr); gap:8px; color:#bdbdbd; font-weight:600; }
-.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:8px; }
+* Calendar shell */
+.cal {
+  display: grid;
+  grid-template-rows: auto 1fr;  /* header row + body row */
+  gap: 0;                        /* remove double gap between head and grid */
+}
 
+/* Day header inside each cell */
+.cal-head-cell {
+  text-align: center;
+  font-weight: 600;
+  color: #bdbdbd;
+}
 /* cells */
 .cal-cell { background:#0e0f12; border:1px solid #1d1e22; border-radius:12px; padding:10px; min-height:120px; display:flex; flex-direction:column; }
 .cal-cell-head { display:flex; align-items:baseline; gap:6px; margin-bottom:8px; }
