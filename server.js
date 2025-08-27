@@ -215,9 +215,6 @@ function snapMinutes(d, step = 60) {
   const snapped = Math.round(m / step) * step;
   dt.setMinutes(snapped);
   return dt;
-const newStart = snapMinutes(start_iso ? new Date(start_iso) : new Date(slot.start_iso), 60);
-const newEnd   = new Date(newStart.getTime() + durMin * 60 * 1000);
-
 }
 
 // Allowed windows per DOW (0=Sun..6=Sat) -> set of allowed START hours
