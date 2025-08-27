@@ -99,48 +99,16 @@ app.use(session({
 
 /* ---------- Table bootstrapping (idempotent) ---------- */
 db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS members (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    email TEXT UNIQUE NOT NULL,
-    password_hash TEXT,
-    credits INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now'))
-  )`);
-  db.run(`CREATE TABLE IF NOT EXISTS invites (
-    id TEXT PRIMARY KEY,
-    member_id INTEGER NOT NULL,
-    expires_at TEXT NOT NULL,
-    used INTEGER DEFAULT 0
-  )`);
-  db.run(`CREATE TABLE IF NOT EXISTS slots (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    start_iso TEXT NOT NULL,
-    end_iso TEXT NOT NULL,
-    is_booked INTEGER DEFAULT 0,
-    location TEXT
-  )`);
-  db.run(`CREATE TABLE IF NOT EXISTS bookings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    member_id INTEGER NOT NULL,
-    slot_id INTEGER NOT NULL,
-    notes TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    cancelled_at TEXT,
-    refunded INTEGER DEFAULT 0
-  )`);
-db.run(`CREATE TABLE IF NOT EXISTS holidays (
-  day  TEXT PRIMARY KEY,   -- 'YYYY-MM-DD'
-  note TEXT
-)`);
-db.serialize(() => {
-  // ...existing CREATE TABLEs...
-
-  // Holidays: one row per day (London local date)
+  db.run(`CREATE TABLE IF NOT EXISTS members (...)`);
+  db.run(`CREATE TABLE IF NOT EXISTS invites (...)`);
+  db.run(`CREATE TABLE IF NOT EXISTS slots   (...)`);
+  db.run(`CREATE TABLE IF NOT EXISTS bookings(...)`);
   db.run(`CREATE TABLE IF NOT EXISTS holidays (
     day  TEXT PRIMARY KEY,   -- 'YYYY-MM-DD' in Europe/London
     note TEXT
   )`);
+});
+
 });
 
 /* ---------- Email ---------- */
@@ -820,16 +788,15 @@ app.patch('/api/admin/slots/:id', requireAdmin, async (req, res) => {
     res.status(500).json({ error: 'DB_ERROR' });
   }
 });
-/* ---------- ADMIN: Bulk create slots ---------- */
-/*
+/* ---------- ADMIN: Bulk create slots ----------
   Body:
   {
-    from: "YYYY-MM-DD",
-    to: "YYYY-MM-DD",
-    weekdays: [1,2,3,4],      // Mon=1 .. Sun=0
-    hours: [17,18,19,20],     // London wall-clock hours (24h)
-    duration_minutes: 60,
-    location: "Hull"
+    "from": "YYYY-MM-DD",
+    "to": "YYYY-MM-DD",
+    "weekdays": [1,2,3,4],      // Mon=1 .. Sun=0
+    "hours": [17,18,19,20],     // London wall-clock hours (24h)
+    "duration_minutes": 60,
+    "location": "Hull"
   }
 */
 app.post('/api/admin/slots/bulk', requireAdmin, async (req, res) => {
@@ -837,52 +804,41 @@ app.post('/api/admin/slots/bulk', requireAdmin, async (req, res) => {
     const { from, to, weekdays, hours, duration_minutes, location } = req.body || {};
 
     if (!from || !to) return res.status(400).json({ error: 'MISSING_RANGE' });
-    const wd = Array.isArray(weekdays) ? weekdays.map(Number) : [];
-    const hh = Array.isArray(hours)    ? hours.map(Number)    : [];
+    const wd  = Array.isArray(weekdays) ? weekdays.map(Number) : [];
+    const hh  = Array.isArray(hours)    ? hours.map(Number)    : [];
     const dur = Number.isFinite(Number(duration_minutes)) ? Number(duration_minutes) : 60;
-
     if (!wd.length || !hh.length) return res.status(400).json({ error: 'MISSING_PATTERN' });
 
     const startDay = new Date(from + 'T00:00:00Z');
     const endDay   = new Date(to   + 'T23:59:59Z');
     if (!(startDay < endDay)) return res.status(400).json({ error: 'BAD_RANGE' });
 
-    // helper: build ISO for a given y-m-d h:00 in Europe/London
     function londonISO(y, m, d, hour) {
       const guessUTC = new Date(Date.UTC(y, m, d, hour, 0, 0));
-      const londonHourStr = new Intl.DateTimeFormat('en-GB', {
-        hour: '2-digit', hour12: false, timeZone: 'Europe/London'
-      }).format(guessUTC);
+      const londonHourStr = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Europe/London' }).format(guessUTC);
       const londonHourNum = Number(londonHourStr);
       const diffHours = hour - londonHourNum;
       guessUTC.setUTCHours(guessUTC.getUTCHours() + diffHours);
       return guessUTC.toISOString();
     }
     const londonWeekday = (dateLike) => {
-      const w = new Intl.DateTimeFormat('en-GB', {
-        weekday: 'short', timeZone: 'Europe/London'
-      }).format(new Date(dateLike));
+      const w = new Intl.DateTimeFormat('en-GB', { weekday: 'short', timeZone: 'Europe/London' }).format(new Date(dateLike));
       return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(w);
     };
 
     let created = 0, skipped = 0;
     for (let t = new Date(startDay); t <= endDay; t.setUTCDate(t.getUTCDate() + 1)) {
       const y = t.getUTCFullYear(), m = t.getUTCMonth(), d = t.getUTCDate();
-      const dow = londonWeekday(t); // 0..6 in London
+      const dow = londonWeekday(t);
       if (!wd.includes(dow)) continue;
 
       for (const h of hh) {
         const startISO = londonISO(y, m, d, h);
         const endISO   = londonISO(y, m, d, h + Math.max(1, Math.round(dur/60)));
-
         const exists = await pGet(`SELECT id FROM slots WHERE start_iso = ?`, [startISO]);
         if (exists) { skipped++; continue; }
-
-        await pRun(
-          `INSERT INTO slots (start_iso, end_iso, location, is_booked)
-           VALUES (?,?,?,0)`,
-          [startISO, endISO, location || null]
-        );
+        await pRun(`INSERT INTO slots (start_iso, end_iso, location, is_booked) VALUES (?,?,?,0)`,
+                   [startISO, endISO, location || null]);
         created++;
       }
     }
