@@ -576,30 +576,18 @@ app.get('/api/admin/slots', requireAdmin, async (_req, res) => {
 });
 
 app.post('/api/admin/slots', requireAdmin, async (req, res) => {
+  const { start_iso, location } = req.body || {};
+  if (!start_iso) return res.status(400).json({ error: 'MISSING_START' });
+
   try {
-    const force = String(req.query.force || 'false').toLowerCase() === 'true';
-    const { start_iso, location, duration_minutes } = req.body || {};
-    if (!start_iso) return res.status(400).json({ error: 'MISSING_START' });
-
-    // Interpret incoming local time, snap to top of hour, recompute end by duration
-    const startLocal = snapMinutes(new Date(start_iso), 60);
-    const durMin = Number.isFinite(Number(duration_minutes)) ? Number(duration_minutes) : 60;
-    const endLocal   = new Date(startLocal.getTime() + durMin * 60 * 1000);
-
-    // Validate against windows (unless force=true)
-    if (!force) {
-      const v = validateStartLondon(startLocal.toISOString(), location);
-      if (!v.ok) return res.status(400).json({ error: v.reason });
-    }
-
-    // Uniqueness on start_iso
-    const dup = await pGet(`SELECT id FROM slots WHERE start_iso=?`, [startLocal.toISOString()]);
-    if (dup) return res.status(409).json({ error: 'DUPLICATE_START' });
+    const start = new Date(start_iso);
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
 
     const ins = await pRun(
-      `INSERT INTO slots (start_iso,end_iso,location,is_booked) VALUES (?,?,?,0)`,
-      [startLocal.toISOString(), endLocal.toISOString(), location || null]
+      `INSERT INTO slots (start_iso,end_iso,location) VALUES (?,?,?)`,
+      [start.toISOString(), end.toISOString(), location || null]
     );
+
     res.json({ ok: true, id: ins.lastID });
   } catch (e) {
     console.error(e);
