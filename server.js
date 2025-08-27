@@ -863,6 +863,7 @@ if (!force) {
 app.post('/api/admin/slots/bulk', requireAdmin, async (req, res) => {
   try {
     const { from, to, weekdays, hours, duration_minutes, location } = req.body || {};
+    const force = String(req.query.force || 'false').toLowerCase() === 'true';
 
     if (!from || !to) return res.status(400).json({ error: 'MISSING_RANGE' });
     const wd  = Array.isArray(weekdays) ? weekdays.map(Number) : [];
@@ -888,37 +889,41 @@ app.post('/api/admin/slots/bulk', requireAdmin, async (req, res) => {
     };
 
     let created = 0, skipped = 0;
+
+    // OUTER for-loop — make sure this block is closed later
     for (let t = new Date(startDay); t <= endDay; t.setUTCDate(t.getUTCDate() + 1)) {
       const y = t.getUTCFullYear(), m = t.getUTCMonth(), d = t.getUTCDate();
       const dow = londonWeekday(t);
       if (!wd.includes(dow)) continue;
 
-     for (const h of hh) {
-  const startISO = londonISO(y, m, d, h);
-  const endISO   = londonISO(y, m, d, h + Math.max(1, Math.round(dur/60)));
+      // INNER for-loop — this one already had a closing brace
+      for (const h of hh) {
+        const startISO = londonISO(y, m, d, h);
+        const endISO   = londonISO(y, m, d, h + Math.max(1, Math.round(dur/60)));
 
-  if (!String(req.query.force || 'false').toLowerCase() === 'true') {
-    const v = validateStartLondon(startISO, location);
-    if (!v.ok) { skipped++; continue; }
-  }
+        if (!force) {
+          const v = validateStartLondon(startISO, location);
+          if (!v.ok) { skipped++; continue; }
+        }
 
-  const exists = await pGet(`SELECT id FROM slots WHERE start_iso = ?`, [startISO]);
-  if (exists) { skipped++; continue; }
+        const exists = await pGet(`SELECT id FROM slots WHERE start_iso = ?`, [startISO]);
+        if (exists) { skipped++; continue; }
 
-  await pRun(
-    `INSERT INTO slots (start_iso, end_iso, location, is_booked) VALUES (?,?,?,0)`,
-    [startISO, endISO, location || null]
-  );
-  created++;
-}
+        await pRun(
+          `INSERT INTO slots (start_iso, end_iso, location, is_booked) VALUES (?,?,?,0)`,
+          [startISO, endISO, location || null]
+        );
+        created++;
+      } // <-- closes inner loop
+    }   // <-- closes outer loop
 
-
-    res.json({ ok: true, created, skipped });
+    return res.json({ ok: true, created, skipped });
   } catch (e) {
     console.error('POST /api/admin/slots/bulk error:', e);
-    res.status(500).json({ error: 'DB_ERROR' });
+    return res.status(500).json({ error: 'DB_ERROR' });
   }
 });
+
 
 
 /* -------- Member: Cancel their own booking (refund only if >24h) -------- */
