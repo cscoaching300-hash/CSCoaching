@@ -73,7 +73,71 @@ body { background:#0b0b0b; color:#eee; font-family: Inter, system-ui, sans-serif
 }
 
 /* === Layout / Panels === */
-.wrap { max-width:1100px; margin:24px auto; padding:0 16px; display:grid; grid-template-columns: 1.4fr .6fr; gap:16px; }
+/* Book page - one column layout */
+.wrap--book{
+  max-width:1100px;
+  margin:24px auto;
+  padding:0 16px;
+  display:grid;
+  gap:16px;
+  grid-template-columns: 1fr;
+/* Horizontal booking bar */
+.book-topbar{
+  display:flex;
+  align-items:flex-end;
+  gap:12px;
+  background:#111214;
+  border:1px solid #1d1e22;
+  border-radius:12px;
+  padding:12px;
+  position:sticky;   /* sticks under the site nav */
+  top:56px;          /* adjust if your nav height differs */
+  z-index:5;
+}
+.book-topbar__left{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.book-topbar__controls{
+  margin-left:auto;
+  display:flex;
+  align-items:flex-end;
+  gap:12px;
+  flex-wrap:wrap;    /* wraps nicely on narrow screens */
+}
+.book-topbar label{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  color:#a8a8a8;
+  font-weight:600;
+  font-size:14px;
+}
+.book-topbar input,
+.book-topbar textarea{
+  background:#080808;
+  color:#fff;
+  border:1px solid #1d1e22;
+  border-radius:10px;
+  padding:.55rem .7rem;
+}
+.book-topbar input{ width:260px; }
+.book-topbar textarea{ width:260px; min-height:38px; resize:vertical; }
+.book-topbar .btn{ height:40px; }
+.book-topbar #msg{ color:#a8a8a8; }
+
+@media (max-width: 900px){
+  .book-topbar{ position:static; }
+  .book-topbar__controls{
+    width:100%;
+    align-items:stretch;
+  }
+  .book-topbar input,
+  .book-topbar textarea,
+  .book-topbar .btn{ width:100%; }
+}
+
 @media (max-width: 900px){ .wrap{ grid-template-columns: 1fr; } }
 .panel { background:#111214; border:1px solid #1d1e22; border-radius:12px; padding:16px; }
 .h1 { margin:2px 0 6px; font-size:26px; }

@@ -7,49 +7,55 @@
   <link rel="stylesheet" href="/style.css?v=20250823">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <script src="/js/site.js?v=6" defer></script>
   <!-- bump version to hard-bust cache -->
   <script src="/js/site.js?v=2" defer></script>
-<script src="/js/book.js?v=7" defer></script>
-
+  <script src="/js/book.js?v=7" defer></script>
 </head>
 <body>
-  <!-- Shared Navigation (partial injects full <nav>) -->
+  <!-- Shared Navigation -->
   <header>
- <nav class="cs-nav">
-  <div id="nav-placeholder"></div>
-</nav>
+    <nav class="cs-nav">
+      <div id="nav-placeholder"></div>
+    </nav>
   </header>
 
-  <main class="wrap">
-    <section class="panel">
-      <div class="section-head">
-        <div>
-          <h1 class="h1">Available sessions</h1>
-          <div class="muted">Next 14 days · 1 hour each · Mon–Thu only</div>
-	<div class="muted" style="margin-top:6px;font-size:12px;">
-        </div>
-        <div id="creditPill" class="pill">Credits: —</div>
+  <main class="wrap wrap--book">
+    <!-- Booking top bar -->
+    <div class="book-topbar panel">
+      <div class="book-topbar__left">
+        <h1 class="h1">Available sessions</h1>
+        <div class="muted">Next 14 days · 1 hour each · Mon–Thu only</div>
       </div>
 
+      <div class="book-topbar__controls">
+        <div id="creditPill" class="pill">Credits: —</div>
+
+        <label>
+          Email
+          <input type="email" id="email" placeholder="you@example.com" autocomplete="email" />
+        </label>
+
+        <label class="notes-label">
+          Notes (optional)
+          <textarea id="notes" rows="1" placeholder="Anything we should know?"></textarea>
+        </label>
+
+        <!-- Spam honeypot -->
+        <input type="text" id="website" autocomplete="off" style="position:absolute;left:-9999px;top:-9999px;">
+        
+        <button id="bookBtn" class="btn" disabled>Book selected slot</button>
+        <div id="msg" class="muted" style="min-height:1.2rem;"></div>
+      </div>
+    </div>
+
+    <!-- Calendar panel -->
+    <section class="panel">
       <div id="slots"></div>
       <div id="slotsError" class="muted" style="margin-top:8px;"></div>
     </section>
-
-    <aside class="panel">
-      <h2 style="margin:4px 0 8px;">Confirm booking</h2>
-      <div class="muted" style="margin-bottom:8px;">No login required — enter your email and we’ll link it to your account.</div>
-      <div class="form">
-        <label>Email <input type="email" id="email" placeholder="you@example.com"></label>
-        <label>Notes (optional) <textarea id="notes" rows="3" placeholder="Anything we should know?"></textarea></label>
-        <!-- Spam honeypot -->
-        <input type="text" id="website" autocomplete="off" style="position:absolute;left:-9999px;top:-9999px;">
-        <button id="bookBtn" class="btn" disabled>Book selected slot</button>
-        <div id="msg" class="muted" style="margin-top:8px;"></div>
-      </div>
-    </aside>
   </main>
 </body>
 </html>
+
 
 
