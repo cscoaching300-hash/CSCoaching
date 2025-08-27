@@ -205,7 +205,43 @@ function withinCoachingWindow(slot) {
   if (dow === 4 && inRange(h, 17, 22)) return !loc || loc.includes('hull');
   return false;
 }
+// --- London helpers already present: londonDOW, londonHour ---
 
+// Snap a Date to exact minute precision (top-of-hour by default)
+function snapMinutes(d, step = 60) {
+  const dt = new Date(d);
+  dt.setSeconds(0, 0);
+  const m = dt.getMinutes();
+  const snapped = Math.round(m / step) * step;
+  dt.setMinutes(snapped);
+  return dt;
+const newStart = snapMinutes(start_iso ? new Date(start_iso) : new Date(slot.start_iso), 60);
+const newEnd   = new Date(newStart.getTime() + durMin * 60 * 1000);
+
+}
+
+// Allowed windows per DOW (0=Sun..6=Sat) -> set of allowed START hours
+function allowedHoursFor(dow, location) {
+  const loc = (location || '').toLowerCase();
+  // If location is blank, accept default location for that weekday.
+  // Mon Scunthorpe 17–20 (start hours), Tue Hull 17–21, Wed Shipley 18–21, Thu Hull 17–21
+  if (dow === 1 && (!loc || loc.includes('scunthorpe'))) return new Set([17,18,19,20]);
+  if (dow === 2 && (!loc || loc.includes('hull')))       return new Set([17,18,19,20,21]);
+  if (dow === 3 && (!loc || loc.includes('shipley')))    return new Set([18,19,20,21]);
+  if (dow === 4 && (!loc || loc.includes('hull')))       return new Set([17,18,19,20,21]);
+  return new Set(); // others: no starts allowed
+}
+
+// Validate a start datetime (London) against day/location windows.
+// Returns { ok, reason }.
+function validateStartLondon(startISO, location) {
+  const dow = londonDOW(startISO);
+  const hr  = londonHour(startISO);
+  const allowed = allowedHoursFor(dow, location);
+  if (!allowed.size) return { ok:false, reason:'DAY_NOT_ALLOWED' };
+  if (!allowed.has(hr)) return { ok:false, reason:'HOUR_NOT_ALLOWED' };
+  return { ok:true };
+}
 
 /* ---------- Public API: slots (with all=true + holidays) ---------- */
 app.get('/api/slots', async (req, res) => {
@@ -539,14 +575,37 @@ app.get('/api/admin/slots', requireAdmin, async (_req, res) => {
 });
 
 app.post('/api/admin/slots', requireAdmin, async (req, res) => {
-  const { start_iso, location } = req.body || {};
-  if (!start_iso) return res.status(400).json({ error: 'MISSING_START' });
   try {
-    const start = new Date(start_iso), end = new Date(start.getTime() + 60 * 60 * 1000);
-    const ins = await pRun(`INSERT INTO slots (start_iso,end_iso,location) VALUES (?,?,?)`, [start.toISOString(), end.toISOString(), location || null]);
+    const force = String(req.query.force || 'false').toLowerCase() === 'true';
+    const { start_iso, location, duration_minutes } = req.body || {};
+    if (!start_iso) return res.status(400).json({ error: 'MISSING_START' });
+
+    // Interpret incoming local time, snap to top of hour, recompute end by duration
+    const startLocal = snapMinutes(new Date(start_iso), 60);
+    const durMin = Number.isFinite(Number(duration_minutes)) ? Number(duration_minutes) : 60;
+    const endLocal   = new Date(startLocal.getTime() + durMin * 60 * 1000);
+
+    // Validate against windows (unless force=true)
+    if (!force) {
+      const v = validateStartLondon(startLocal.toISOString(), location);
+      if (!v.ok) return res.status(400).json({ error: v.reason });
+    }
+
+    // Uniqueness on start_iso
+    const dup = await pGet(`SELECT id FROM slots WHERE start_iso=?`, [startLocal.toISOString()]);
+    if (dup) return res.status(409).json({ error: 'DUPLICATE_START' });
+
+    const ins = await pRun(
+      `INSERT INTO slots (start_iso,end_iso,location,is_booked) VALUES (?,?,?,0)`,
+      [startLocal.toISOString(), endLocal.toISOString(), location || null]
+    );
     res.json({ ok: true, id: ins.lastID });
-  } catch { res.status(500).json({ error: 'DB_ERROR' }); }
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB_ERROR' });
+  }
 });
+
 
 app.delete('/api/admin/slots/:id', requireAdmin, async (req, res) => {
   try {
@@ -764,6 +823,13 @@ app.patch('/api/admin/slots/:id', requireAdmin, async (req, res) => {
     const durMin = Number.isFinite(Number(duration_minutes)) ? Number(duration_minutes) : 60;
     const newEnd = new Date(newStart.getTime() + durMin * 60 * 1000);
 
+const force = String(req.query.force || 'false').toLowerCase() === 'true';
+if (!force) {
+  const v = validateStartLondon(newStart.toISOString(), (location ?? slot.location));
+  if (!v.ok) return res.status(400).json({ error: v.reason });
+}
+
+
     // Avoid duplicates on start_iso (simple uniqueness by start time)
     const dup = await pGet(
       `SELECT id FROM slots WHERE start_iso=? AND id<>?`,
@@ -830,16 +896,25 @@ app.post('/api/admin/slots/bulk', requireAdmin, async (req, res) => {
       const dow = londonWeekday(t);
       if (!wd.includes(dow)) continue;
 
-      for (const h of hh) {
-        const startISO = londonISO(y, m, d, h);
-        const endISO   = londonISO(y, m, d, h + Math.max(1, Math.round(dur/60)));
-        const exists = await pGet(`SELECT id FROM slots WHERE start_iso = ?`, [startISO]);
-        if (exists) { skipped++; continue; }
-        await pRun(`INSERT INTO slots (start_iso, end_iso, location, is_booked) VALUES (?,?,?,0)`,
-                   [startISO, endISO, location || null]);
-        created++;
-      }
-    }
+     for (const h of hh) {
+  const startISO = londonISO(y, m, d, h);
+  const endISO   = londonISO(y, m, d, h + Math.max(1, Math.round(dur/60)));
+
+  if (!String(req.query.force || 'false').toLowerCase() === 'true') {
+    const v = validateStartLondon(startISO, location);
+    if (!v.ok) { skipped++; continue; }
+  }
+
+  const exists = await pGet(`SELECT id FROM slots WHERE start_iso = ?`, [startISO]);
+  if (exists) { skipped++; continue; }
+
+  await pRun(
+    `INSERT INTO slots (start_iso, end_iso, location, is_booked) VALUES (?,?,?,0)`,
+    [startISO, endISO, location || null]
+  );
+  created++;
+}
+
 
     res.json({ ok: true, created, skipped });
   } catch (e) {
