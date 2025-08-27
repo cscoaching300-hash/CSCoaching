@@ -2,21 +2,24 @@
 (() => {
   const TZ = 'Europe/London';
 
-  // ---- Formatters (DST-aware for Europe/London) ----
-  const FMT_TIME = new Intl.DateTimeFormat([], {
+  /* ---------- Formatters (DST-aware) ---------- */
+  const FMT_TIME = new Intl.DateTimeFormat('en-GB', {
     hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ
   });
-  const FMT_DAY = new Intl.DateTimeFormat([], {
+  const FMT_DAY = new Intl.DateTimeFormat('en-GB', {
     day: '2-digit', timeZone: TZ
   });
-  const FMT_MON = new Intl.DateTimeFormat([], {
+  const FMT_MON = new Intl.DateTimeFormat('en-GB', {
     month: 'short', timeZone: TZ
   });
   const FMT_YMD_PARTS = new Intl.DateTimeFormat('en-GB', {
     year: 'numeric', month: '2-digit', day: '2-digit', timeZone: TZ
   });
+  const FMT_WD = new Intl.DateTimeFormat('en-GB', {
+    weekday: 'short', timeZone: TZ
+  });
 
-  // Helpers to get YYYY-MM-DD in Europe/London
+  /* ---------- Helpers for YYYY-MM-DD in London ---------- */
   const partsFromDate = (d) =>
     FMT_YMD_PARTS.formatToParts(d).reduce((acc, p) => (acc[p.type] = p.value, acc), {});
 
@@ -40,7 +43,16 @@
 
   const sameLocalDay = (a, b) => keyFromDate(a) === keyFromDate(b);
 
-  // ---- DOM ----
+  // Find this week's Sunday *in Europe/London*
+  function londonWeekStart(fromDate = new Date()) {
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(fromDate, -i);
+      if (FMT_WD.format(d) === 'Sun') return d;
+    }
+    return fromDate;
+  }
+
+  /* ---------- DOM ---------- */
   const qs = (s, el = document) => el.querySelector(s);
 
   const slotsHost  = qs('#slots');
@@ -54,7 +66,7 @@
   let selectedSlot = null;
   let allSlots = [];
 
-  // ---- API helpers ----
+  /* ---------- API helpers ---------- */
   async function loadCredits() {
     try {
       const r = await fetch('/api/me', { credentials: 'same-origin' });
@@ -66,7 +78,7 @@
   }
 
   async function fetchSlots() {
-    // first try normal (respects server filter); then fallback to bypass
+    // try normal; fallback to bypass so UI never looks empty
     const base = '/api/slots';
     let res = await fetch(base, { credentials: 'same-origin' });
     let j = await res.json().catch(() => ({}));
@@ -87,7 +99,7 @@
     }));
   }
 
-  // ---- Calendar rendering ----
+  /* ---------- Calendar rendering ---------- */
   function renderCalendar() {
     if (!slotsHost) return;
 
@@ -100,7 +112,7 @@
       return;
     }
 
-    // group by local day
+    // group by London local day
     const byDay = {};
     allSlots.forEach(s => {
       const k = keyFromISO(s.start_iso);
@@ -108,8 +120,7 @@
     });
 
     const today = new Date();
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - today.getDay()); // Sunday in local tz
+    const weekStart = londonWeekStart(today); // Sunday in London
     const totalDays = 28; // 4 weeks
 
     slotsHost.innerHTML = `
@@ -170,14 +181,17 @@
     }
   }
 
+  /* ---------- Selection & booking ---------- */
   function selectSlot(slot, btnEl) {
     selectedSlot = slot;
     document.querySelectorAll('.slot-chip.selected').forEach(el => el.classList.remove('selected'));
     btnEl.classList.add('selected');
     if (bookBtn) bookBtn.disabled = false;
     if (msg) {
-      msg.textContent = `Selected: ${new Date(slot.start_iso).toLocaleString([], {
-        weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: TZ
+      msg.textContent = `Selected: ${new Date(slot.start_iso).toLocaleString('en-GB', {
+        timeZone: TZ,
+        weekday: 'short', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: false
       })} @ ${slot.location || 'CSCoaching'}`;
     }
   }
@@ -226,7 +240,7 @@
     }
   }
 
-  // Init
+  /* ---------- Init ---------- */
   window.addEventListener('DOMContentLoaded', async () => {
     if (slotsHost) {
       slotsHost.innerHTML = '<div class="skel" style="height:140px"></div>';
