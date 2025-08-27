@@ -94,6 +94,22 @@
   </div>
 </section>
 
+<section class="card">
+  <h2>Holidays</h2>
+  <div class="row" style="gap:10px; flex-wrap:wrap;">
+    <label>Day <input id="hDay" class="in" type="date"></label>
+    <label>Note <input id="hNote" class="in" type="text" placeholder="e.g. Bank Holiday"></label>
+    <button id="hAdd" class="btn sm">Add / Update</button>
+    <button id="hDel" class="btn sm danger">Remove</button>
+    <span id="hMsg" class="msg"></span>
+  </div>
+  <div style="margin-top:12px;">
+    <table class="table" id="hTable">
+      <thead><tr><th>Day</th><th>Note</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
 
     <!-- Quick actions -->
     <section class="card">

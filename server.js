@@ -129,6 +129,10 @@ db.serialize(() => {
     cancelled_at TEXT,
     refunded INTEGER DEFAULT 0
   )`);
+db.run(`CREATE TABLE IF NOT EXISTS holidays (
+  day  TEXT PRIMARY KEY,   -- 'YYYY-MM-DD'
+  note TEXT
+)`);
 });
 
 /* ---------- Email ---------- */

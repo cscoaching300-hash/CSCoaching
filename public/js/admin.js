@@ -222,6 +222,63 @@
     }
   });
 
+(function holidaysPanel(){
+  const key = () => localStorage.getItem('ADMIN_KEY') || '';
+  const hDay  = document.getElementById('hDay');
+  const hNote = document.getElementById('hNote');
+  const hAdd  = document.getElementById('hAdd');
+  const hDel  = document.getElementById('hDel');
+  const hMsg  = document.getElementById('hMsg');
+  const hTable= document.getElementById('hTable')?.querySelector('tbody');
+
+  async function loadHolidays(){
+    if (!hTable) return;
+    hTable.innerHTML = `<tr><td colspan="2">Loading…</td></tr>`;
+    const r = await fetch('/api/admin/holidays', { headers:{ 'X-ADMIN-KEY': key() }});
+    const j = await r.json().catch(()=>({}));
+    hTable.innerHTML = '';
+    (j.holidays || []).forEach(h=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${h.day}</td><td>${h.note || ''}</td>`;
+      tr.addEventListener('click', ()=>{
+        hDay.value = h.day;
+        hNote.value = h.note || '';
+      });
+      hTable.appendChild(tr);
+    });
+  }
+
+  hAdd?.addEventListener('click', async ()=>{
+    hMsg.textContent = '';
+    const day = hDay.value;
+    if (!day) { hMsg.textContent = 'Pick a date.'; return; }
+    const r = await fetch('/api/admin/holidays', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'X-ADMIN-KEY': key() },
+      body: JSON.stringify({ day, note: hNote.value })
+    });
+    const j = await r.json().catch(()=>({}));
+    hMsg.textContent = r.ok && j.ok !== false ? 'Saved.' : (j.error || 'Error');
+    loadHolidays();
+  });
+
+  hDel?.addEventListener('click', async ()=>{
+    hMsg.textContent = '';
+    const day = hDay.value;
+    if (!day) { hMsg.textContent = 'Pick a date to remove.'; return; }
+    const r = await fetch('/api/admin/holidays/' + encodeURIComponent(day), {
+      method:'DELETE',
+      headers:{ 'X-ADMIN-KEY': key() }
+    });
+    const j = await r.json().catch(()=>({}));
+    hMsg.textContent = r.ok && j.ok !== false ? 'Removed.' : (j.error || 'Error');
+    loadHolidays();
+  });
+
+  loadHolidays();
+})();
+
+
   // ---------------- Upcoming (booked) with actions ----------------
   let cachedSlots = []; // for move dropdowns
 

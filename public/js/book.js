@@ -29,15 +29,10 @@
 
   const fmtTime = (iso) => FMT_TIME.format(new Date(iso));
 
-  const addDays = (d, n) => {
-    const x = new Date(d);
-    x.setDate(x.getDate() + n);
-    return x;
-  };
-
+  const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
   const sameLocalDay = (a, b) => keyFromDate(a) === keyFromDate(b);
 
-  // Find this week's Sunday *in Europe/London*
+  // Find this week's Sunday *in Europe/London* (kept for reference; not used below)
   function londonWeekStart(fromDate = new Date()) {
     for (let i = 0; i < 7; i++) {
       const d = addDays(fromDate, -i);
@@ -57,9 +52,10 @@
   const msg        = qs('#msg');
   const creditPill = qs('#creditPill');
 
-  // 🔥 Multi-select (max 2)
+  // 🔥 Multi-select (max 2) + holidays cache
   let selectedSlots = [];   // array of { id, start_iso, end_iso, location }
   let allSlots = [];
+  let holidaySet = new Set();  // <--- EXACTLY HERE: global set of 'YYYY-MM-DD' holiday days
 
   /* ---------- API helpers ---------- */
   async function loadCredits() {
@@ -73,28 +69,22 @@
   }
 
   async function fetchSlots() {
-    // try normal; fallback to bypass so UI never looks empty
+    // Ask server for all slots + holidays (max 60 daysso the UI isn't empty)
     const base = '/api/slots?all=true&includeHolidays=true&maxDays=60';
+
     let res = await fetch(base, { credentials: 'same-origin' });
     let j = await res.json().catch(() => ({}));
     let slots = j.slots || [];
 
-// after you fetch
-let holidays = (j.holidays || []).map(h => h.day);
-const holidaySet = new Set(holidays);
-
-// in render: for each local-day "key"
-if (holidaySet.has(key)) {
-  body.innerHTML = `<div class="cal-empty" style="color:#e02424;font-weight:700">HOLIDAY</div>`;
-} else {
-  // render slots as you do now
-}
-
+    // ⬇️ EXACTLY HERE: capture holidays from API (store as Set of 'YYYY-MM-DD')
+    holidaySet = new Set((j.holidays || []).map(h => h.day));
 
     if (!slots.length) {
-      res = await fetch(base + '?debug=bypass', { credentials: 'same-origin' });
+      // fallback: bypass filter
+      res = await fetch(base + '&debug=bypass', { credentials: 'same-origin' });
       j = await res.json().catch(() => ({}));
       slots = j.slots || [];
+      if (j.holidays) holidaySet = new Set((j.holidays || []).map(h => h.day));
     }
 
     allSlots = slots.map(s => ({
@@ -155,6 +145,29 @@ if (holidaySet.has(key)) {
       const key = keyFromDate(day);
       const list = (byDay[key] || []).sort((a, b) => new Date(a.start_iso) - new Date(b.start_iso));
 
+      // ⬇️ EXACTLY HERE: if the day is a holiday, render banner and skip slots
+      if (holidaySet.has(key)) {
+        const cell = document.createElement('div');
+        cell.className = 'cal-cell';
+
+        const head = document.createElement('div');
+        head.className = 'cal-cell-head';
+        head.innerHTML = `
+          <div class="cal-date">${FMT_DAY.format(day)}</div>
+          <div class="cal-month">${FMT_MON.format(day)}</div>
+        `;
+        if (sameLocalDay(day, today)) head.classList.add('today');
+
+        const body = document.createElement('div');
+        body.className = 'cal-cell-body';
+        body.innerHTML = `<div class="cal-empty" style="color:#e02424;font-weight:700">HOLIDAY</div>`;
+
+        cell.appendChild(head);
+        cell.appendChild(body);
+        grid.appendChild(cell);
+        continue; // next day
+      }
+
       const cell = document.createElement('div');
       cell.className = 'cal-cell';
 
@@ -183,8 +196,10 @@ if (holidaySet.has(key)) {
             btn.className = 'slot-chip';
             btn.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)}${s.location ? ` • ${s.location}` : ''}`;
             btn.dataset.id = s.id;
+
             // reflect current selections
             if (selectedSlots.find(sel => sel.id === s.id)) btn.classList.add('selected');
+
             btn.addEventListener('click', () => toggleSlot(s, btn));
             body.appendChild(btn);
           }
@@ -253,7 +268,7 @@ if (holidaySet.has(key)) {
     msg.textContent = 'Booking…';
 
     try {
-      // Try bulk API first
+      // Try bulk (server may not support; we’ll fall back)
       const bulkPayload = {
         slot_ids: selectedSlots.map(s => s.id),
         email,
@@ -268,10 +283,13 @@ if (holidaySet.has(key)) {
         body: JSON.stringify(bulkPayload)
       });
 
-      // If bulk not supported, fall back to sequential single-slot posts
+      // Fallback to sequential singles if needed
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
-        const looksLikeSingleOnly = j?.error === 'MISSING_FIELDS' || j?.error === 'BAD_BODY' || j?.error === 'UNKNOWN_FIELD';
+        const looksLikeSingleOnly =
+          j?.error === 'MISSING_FIELDS' ||
+          j?.error === 'BAD_BODY' ||
+          j?.error === 'UNKNOWN_FIELD';
 
         if (looksLikeSingleOnly || selectedSlots.length > 1) {
           for (const s of selectedSlots) {
@@ -295,7 +313,6 @@ if (holidaySet.has(key)) {
             }
           }
         } else {
-          // some other error
           msg.textContent = j?.error || 'Sorry, something went wrong.';
           if (bookBtn) bookBtn.disabled = false;
           return;
