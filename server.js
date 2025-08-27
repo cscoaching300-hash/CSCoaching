@@ -109,8 +109,6 @@ db.serialize(() => {
   )`);
 });
 
-});
-
 /* ---------- Email ---------- */
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
