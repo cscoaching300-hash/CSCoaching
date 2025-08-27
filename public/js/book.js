@@ -70,7 +70,8 @@
 
   async function fetchSlots() {
     // Ask server for all slots + holidays (max 60 daysso the UI isn't empty)
-    const base = '/api/slots?includeHolidays=true&maxDays=60'; // remove all=true
+    const res = await fetch(`/api/slots?onlyAvailable=true&all=true&includeHolidays=true`);
+
 
 
     let res = await fetch(base, { credentials: 'same-origin' });
