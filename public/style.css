@@ -379,13 +379,10 @@ body { background:#0b0b0b; color:#eee; font-family: Inter, system-ui, sans-serif
 .cal { display: grid; gap: 12px; width: 100%; }
 
 .cal-grid {
-  display: grid !important;                 /* ensure grid wins */
-  grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
-  grid-auto-flow: row;
-  column-gap: 12px;
-  row-gap: 12px;
-  width: 100%;
-  align-items: start;
+  display:grid !important;
+  grid-template-columns: repeat(7, minmax(140px, 1fr)) !important; /* was 1fr */
+  column-gap:12px;
+  row-gap:12px;
 }
 
 /* Header cells live in the first row of the same grid */
@@ -415,14 +412,28 @@ body { background:#0b0b0b; color:#eee; font-family: Inter, system-ui, sans-serif
 .cal-cell-body { display:flex; flex-direction:column; gap:6px; flex:1; }
 .cal-empty     { color:#444; }
 
-/* Slot chips */
+/* Slot chip */
 .slot-chip{
-  width:100%; text-align:left;
-  background:#0b0c10; border:1px solid #24262e;
-  border-radius:10px; padding:10px; line-height:1.15;
-  cursor:pointer; transition:border-color .15s, box-shadow .15s, transform .05s;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  width:100%;
+  text-align:left;
+  background:#0b0c10;
+  border:1px solid #24262e;
+  border-radius:10px;
+  padding:10px;
+  line-height:1.2;
+
+  /* show full text */
+  white-space: normal;      /* allow wrapping */
+  overflow: visible;        /* no clipping */
+  text-overflow: clip;      /* no ellipsis */
+
+  cursor:pointer;
+  transition:border-color .15s, box-shadow .15s, transform .05s;
 }
+
+/* optional: make time and location sit nicely if you ever add spans */
+.slot-chip .slot-line { display:block; }
+
 .slot-chip:hover{ border-color:#2e313b; box-shadow:0 0 0 1px #2e313b inset; }
 .slot-chip.selected{ border-color:#e02424; box-shadow:0 0 0 2px rgba(224,36,36,.25); }
 
