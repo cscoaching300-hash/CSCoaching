@@ -229,24 +229,24 @@ function withinCoachingWindow(slot) {
 }
 
 
-/* ---------- Public API: slots ---------- */
+/* ---------- Public API: slots (with all=true + holidays) ---------- */
 app.get('/api/slots', async (req, res) => {
   try {
     const onlyAvailable = String(req.query.onlyAvailable || '').toLowerCase() === 'true';
     const debug = (req.query.debug || '').toString().toLowerCase();
+    const showAll = String(req.query.all || '').toLowerCase() === 'true';
+    const includeHolidays = String(req.query.includeHolidays || '').toLowerCase() === 'true';
 
-    // windows
+    // window
     const now = new Date();
     const startReq = req.query.from ? new Date(req.query.from + 'T00:00:00Z') : now;
 
-    // allow caller to extend window (admin UI uses up to 120)
     const maxDays = Math.max(1, Math.min(180, Number(req.query.maxDays || 14)));
-    const hardEnd = new Date(now);
-    hardEnd.setDate(hardEnd.getDate() + maxDays);
-
+    const hardEnd = new Date(now); hardEnd.setDate(hardEnd.getDate() + maxDays);
     const endReq = req.query.to ? new Date(req.query.to + 'T23:59:59Z') : hardEnd;
     const end = endReq < hardEnd ? endReq : hardEnd;
 
+    // fetch raw slots
     let where = `WHERE start_iso>=? AND start_iso<?`;
     const params = [startReq.toISOString(), end.toISOString()];
     if (onlyAvailable) where += ` AND is_booked=0`;
@@ -258,23 +258,56 @@ app.get('/api/slots', async (req, res) => {
         ORDER BY start_iso ASC`, params
     );
 
-    // keep your Mon–Thu location/time business rules unless debug=bypass
-    let filtered = (debug === 'bypass') ? rows : rows.filter(withinCoachingWindow);
-    if (filtered.length === 0 && rows.length > 0 && debug !== 'bypass') filtered = rows;
+    // optional: get holidays in the same window
+    let holidays = [];
+    if (includeHolidays) {
+      const fromYMD = params[0].slice(0,10);
+      const toYMD   = params[1].slice(0,10);
+      holidays = await pAll(
+        `SELECT day, note FROM holidays
+         WHERE day >= ? AND day <= ?
+         ORDER BY day ASC`,
+        [fromYMD, toYMD]
+      );
+    }
+
+    // build a Set of holiday keys for quick exclusion
+    const holiSet = new Set(holidays.map(h => h.day)); // 'YYYY-MM-DD'
+
+    // helper: key by Europe/London day
+    const FMT_YMD = new Intl.DateTimeFormat('en-GB', {
+      year:'numeric', month:'2-digit', day:'2-digit', timeZone:'Europe/London'
+    });
+    const keyFromISO = iso => {
+      const parts = FMT_YMD.formatToParts(new Date(iso))
+        .reduce((a,p) => (a[p.type]=p.value, a), {});
+      return `${parts.year}-${parts.month}-${parts.day}`;
+    };
+
+    // business rule filter (unless showAll or debug=bypass)
+    let filtered = rows;
+    if (!showAll && debug !== 'bypass') {
+      filtered = rows.filter(withinCoachingWindow);
+      if (filtered.length === 0 && rows.length > 0) filtered = rows;
+    }
+
+    // exclude any slots that fall on a holiday day
+    filtered = filtered.filter(s => !holiSet.has(keyFromISO(s.start_iso)));
+
+    // respond
+    const payload = { ok: true, slots: filtered };
+    if (includeHolidays) payload.holidays = holidays;
 
     if (debug) {
-      return res.json({
-        ok: true,
-        debug: {
-          window: { from: params[0], to: params[1] },
-          onlyAvailable,
-          totalRows: rows.length,
-          afterFilter: filtered.length
-        },
-        slots: filtered
-      });
+      payload.debug = {
+        window: { from: params[0], to: params[1] },
+        onlyAvailable, showAll,
+        totalRows: rows.length,
+        afterFilter: filtered.length,
+        holidayDays: holidays.map(h => h.day)
+      };
     }
-    res.json({ ok: true, slots: filtered });
+    return res.json(payload);
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'SERVER_ERROR' });

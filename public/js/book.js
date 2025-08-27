@@ -74,10 +74,22 @@
 
   async function fetchSlots() {
     // try normal; fallback to bypass so UI never looks empty
-    const base = '/api/slots';
+    const base = '/api/slots?all=true&includeHolidays=true&maxDays=60';
     let res = await fetch(base, { credentials: 'same-origin' });
     let j = await res.json().catch(() => ({}));
     let slots = j.slots || [];
+
+// after you fetch
+let holidays = (j.holidays || []).map(h => h.day);
+const holidaySet = new Set(holidays);
+
+// in render: for each local-day "key"
+if (holidaySet.has(key)) {
+  body.innerHTML = `<div class="cal-empty" style="color:#e02424;font-weight:700">HOLIDAY</div>`;
+} else {
+  // render slots as you do now
+}
+
 
     if (!slots.length) {
       res = await fetch(base + '?debug=bypass', { credentials: 'same-origin' });
