@@ -133,6 +133,14 @@ db.run(`CREATE TABLE IF NOT EXISTS holidays (
   day  TEXT PRIMARY KEY,   -- 'YYYY-MM-DD'
   note TEXT
 )`);
+db.serialize(() => {
+  // ...existing CREATE TABLEs...
+
+  // Holidays: one row per day (London local date)
+  db.run(`CREATE TABLE IF NOT EXISTS holidays (
+    day  TEXT PRIMARY KEY,   -- 'YYYY-MM-DD' in Europe/London
+    note TEXT
+  )`);
 });
 
 /* ---------- Email ---------- */
@@ -633,6 +641,59 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
     res.status(500).json({ error: 'DB_ERROR' });
   }
 });
+
+/* ---------- Admin: Holidays CRUD ---------- */
+
+// List holidays (optionally by range)
+app.get('/api/admin/holidays', requireAdmin, async (req, res) => {
+  try {
+    const { from, to } = req.query || {};
+    let rows = [];
+    if (from && to) {
+      rows = await pAll(
+        `SELECT day, note FROM holidays
+         WHERE day >= ? AND day <= ?
+         ORDER BY day ASC`, [from, to]
+      );
+    } else {
+      rows = await pAll(`SELECT day, note FROM holidays ORDER BY day ASC`, []);
+    }
+    res.json({ ok: true, holidays: rows });
+  } catch (e) {
+    console.error('GET /api/admin/holidays', e);
+    res.status(500).json({ error: 'DB_ERROR' });
+  }
+});
+
+// Upsert a holiday
+app.post('/api/admin/holidays', requireAdmin, async (req, res) => {
+  try {
+    const { day, note } = req.body || {};
+    if (!day) return res.status(400).json({ error: 'MISSING_DAY' });
+    await pRun(
+      `INSERT INTO holidays (day, note)
+       VALUES (?, ?)
+       ON CONFLICT(day) DO UPDATE SET note=excluded.note`,
+      [day, note || null]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('POST /api/admin/holidays', e);
+    res.status(500).json({ error: 'DB_ERROR' });
+  }
+});
+
+// Remove a holiday
+app.delete('/api/admin/holidays/:day', requireAdmin, async (req, res) => {
+  try {
+    await pRun(`DELETE FROM holidays WHERE day = ?`, [req.params.day]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('DELETE /api/admin/holidays/:day', e);
+    res.status(500).json({ error: 'DB_ERROR' });
+  }
+});
+
 
 /* ========== ADMIN: MAINTAIN SLOTS (Mon–Thu windows) ========== */
 app.post('/api/admin/maintain-slots', requireAdmin, async (req, res) => {
