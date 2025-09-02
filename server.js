@@ -118,9 +118,10 @@ const transporter = nodemailer.createTransport({
 });
 
 function customerHtml({ name, email, start_iso, end_iso, location, credits, hero }) {
-  const s = new Date(start_iso), e = new Date(end_iso);
-  const when = `${s.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}, ${s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – ${e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  return `<!doctype html><html><body style="margin:0;padding:0;background:#000;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#000;"><tr><td align="center" style="padding:24px 12px;"><table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:600px;max-width:100%;background:#0f0f0f;border:1px solid #1a1a1a;border-radius:12px;color:#fff;font-family:Arial,Helvetica,sans-serif;"><tr><td align="center" style="padding:20px 16px 8px;">${hero ? `<img src="cid:heroimg" alt="CSCoaching" width="600" style="display:block;width:100%;height:auto;border-radius:10px;border:0;outline:none;">` : `<div style="font-size:24px;font-weight:700;letter-spacing:.5px;">CSCoaching</div>`}</td></tr><tr><td style="height:1px;background:#1a1a1a;"></td></tr><tr><td style="padding:18px;font-size:16px;line-height:1.5;"><p style="margin:0 0 10px;">Hi <strong>${name || email}</strong>,</p><p style="margin:0 0 14px;">Your coaching session is <span style="color:#31c553">confirmed</span> ✅</p><table role="presentation" width="100%" style="background:#0b0b0b;border:1px solid #1a1a1a;border-radius:10px;"><tr><td style="padding:12px 14px 0;font-size:14px;color:#d0d0d0;">When</td></tr><tr><td style="padding:0 14px 10px;font-size:16px;color:#fff;"><strong>${when}</strong></td></tr><tr><td style="padding:0 14px 0;font-size:14px;color:#d0d0d0;">Location</td></tr><tr><td style="padding:0 14px 12px;font-size:16px;color:#fff;"><strong>${location || 'CSCoaching'}</strong></td></tr><tr><td style="padding:0 14px 14px;font-size:14px;color:#fff;"><span style="display:inline-block;background:#121212;border:1px solid #1a1a1a;border-radius:8px;padding:6px 10px;">Remaining session credits: <strong style="color:#e02424;">${typeof credits === 'number' ? credits : '—'}</strong></span></td></tr></table><p style="margin:12px 0 0;color:#b5b5b5;font-size:12px;">Need to reschedule? Reply to this email.</p><p style="margin:6px 0 0;color:#b5b5b5;font-size:12px;">© CSCoaching • All rights reserved</p></td></tr></table></td></tr></table></body></html>`;
+  const when = whenLondon(start_iso, end_iso, true); // shows BST/GMT
+  return `<!doctype html><html><body style="margin:0;padding:0;background:#000;">...<strong>${when}</strong>...`;
+}
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#000;"><tr><td align="center" style="padding:24px 12px;"><table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:600px;max-width:100%;background:#0f0f0f;border:1px solid #1a1a1a;border-radius:12px;color:#fff;font-family:Arial,Helvetica,sans-serif;"><tr><td align="center" style="padding:20px 16px 8px;">${hero ? `<img src="cid:heroimg" alt="CSCoaching" width="600" style="display:block;width:100%;height:auto;border-radius:10px;border:0;outline:none;">` : `<div style="font-size:24px;font-weight:700;letter-spacing:.5px;">CSCoaching</div>`}</td></tr><tr><td style="height:1px;background:#1a1a1a;"></td></tr><tr><td style="padding:18px;font-size:16px;line-height:1.5;"><p style="margin:0 0 10px;">Hi <strong>${name || email}</strong>,</p><p style="margin:0 0 14px;">Your coaching session is <span style="color:#31c553">confirmed</span> ✅</p><table role="presentation" width="100%" style="background:#0b0b0b;border:1px solid #1a1a1a;border-radius:10px;"><tr><td style="padding:12px 14px 0;font-size:14px;color:#d0d0d0;">When</td></tr><tr><td style="padding:0 14px 10px;font-size:16px;color:#fff;"><strong>${when}</strong></td></tr><tr><td style="padding:0 14px 0;font-size:14px;color:#d0d0d0;">Location</td></tr><tr><td style="padding:0 14px 12px;font-size:16px;color:#fff;"><strong>${location || 'CSCoaching'}</strong></td></tr><tr><td style="padding:0 14px 14px;font-size:14px;color:#fff;"><span style="display:inline-block;background:#121212;border:1px solid #1a1a1a;border-radius:8px;padding:6px 10px;">Remaining session credits: <strong style="color:#e02424;">${typeof credits === 'number' ? credits : '—'}</strong></span></td></tr></table><p style="margin:12px 0 0;color:#b5b5b5;font-size:12px;">Need to reschedule? Reply to this email.</p><p style="margin:6px 0 0;color:#b5b5b5;font-size:12px;">© CSCoaching • All rights reserved</p></td></tr></table></td></tr></table></body></html>`;
 }
 async function sendCustomerEmail({ to, name, email, start_iso, end_iso, location, credits }) {
   const heroPath = fs.existsSync(path.join(__dirname, 'public', 'logo.png')) ? path.join(__dirname, 'public', 'logo.png') : null;
@@ -132,14 +133,20 @@ async function sendCustomerEmail({ to, name, email, start_iso, end_iso, location
   });
 }
 async function sendAdminEmail({ start_iso, end_iso, location, name, email }) {
-  const s = new Date(start_iso), e = new Date(end_iso);
+  const when = whenLondon(start_iso, end_iso, true);
   await transporter.sendMail({
     from: `"CSCoaching" <${process.env.SMTP_USER}>`,
     to: process.env.ADMIN_EMAIL || process.env.SMTP_USER,
     subject: '📩 New CSCoaching booking',
-    text: `New booking\n\nName: ${name || email}\nEmail: ${email}\nWhen: ${s} – ${e}\nLocation: ${location || ''}`
+    text: `New booking
+
+Name: ${name || email}
+Email: ${email}
+When: ${when}
+Location: ${location || ''}`
   });
 }
+
 async function sendActivationEmail({ to, name, token }) {
   const link = `${APP_BASE_URL}/activate.html?token=${encodeURIComponent(token)}`;
   const html = `<!doctype html><html><body style="font-family:Arial,Helvetica,sans-serif;background:#0f0f0f;color:#fff;padding:24px"><div style="max-width:560px;margin:0 auto;background:#101215;border:1px solid #1a1a1a;border-radius:12px;padding:20px"><h2 style="margin:0 0 12px">Welcome to CSCoaching</h2><p style="color:#cfcfcf">Hi ${name || to}, click below to set your password:</p><p style="margin:16px 0"><a href="${link}" style="background:#e02424;color:#fff;text-decoration:none;padding:10px 14px;border-radius:8px;display:inline-block">Activate your account</a></p><p style="color:#9a9a9a;font-size:12px">Or paste this link:<br>${link}</p></div></body></html>`;
@@ -205,6 +212,29 @@ function withinCoachingWindow(slot) {
   if (dow === 4 && inRange(h, 17, 22)) return !loc || loc.includes('hull');
   return false;
 }
+
+// Allowed windows per DOW (0=Sun..6=Sat) -> set of allowed START hours
+function allowedHoursFor(dow, location) {
+  const loc = (location || '').toLowerCase();
+  // If location is blank, accept default location for that weekday.
+  // Mon Scunthorpe 17–20 (start hours), Tue Hull 17–21, Wed Shipley 18–21, Thu Hull 17–21
+  if (dow === 1 && (!loc || loc.includes('scunthorpe'))) return new Set([17,18,19,20]);
+  if (dow === 2 && (!loc || loc.includes('hull')))       return new Set([17,18,19,20,21]);
+  if (dow === 3 && (!loc || loc.includes('shipley')))    return new Set([18,19,20,21]);
+  if (dow === 4 && (!loc || loc.includes('hull')))       return new Set([17,18,19,20,21]);
+  return new Set(); // others: no starts allowed
+}
+
+// Validate a start datetime (London) against day/location windows.
+// Returns { ok, reason }.
+function validateStartLondon(startISO, location) {
+  const dow = londonDOW(startISO);
+  const hr  = londonHour(startISO);
+  const allowed = allowedHoursFor(dow, location);
+  if (!allowed.size) return { ok:false, reason:'DAY_NOT_ALLOWED' };
+  if (!allowed.has(hr)) return { ok:false, reason:'HOUR_NOT_ALLOWED' };
+  return { ok:true };
+}
 // --- London helpers already present: londonDOW, londonHour ---
 
 // Snap a Date to exact minute precision (top-of-hour by default)
@@ -239,6 +269,29 @@ function validateStartLondon(startISO, location) {
   if (!allowed.has(hr)) return { ok:false, reason:'HOUR_NOT_ALLOWED' };
   return { ok:true };
 }
+
+// --- London time formatting helpers ---
+const fmtDayLondon = new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+  timeZone: 'Europe/London',
+});
+const fmtTimeLondon = new Intl.DateTimeFormat('en-GB', {
+  hour: '2-digit', minute: '2-digit', hour12: false,
+  timeZone: 'Europe/London',
+});
+const fmtTimeLondonTZ = new Intl.DateTimeFormat('en-GB', {
+  hour: '2-digit', minute: '2-digit', hour12: false,
+  timeZone: 'Europe/London', timeZoneName: 'short', // BST/GMT
+});
+function whenLondon(start_iso, end_iso, withTZ = true) {
+  const s = new Date(start_iso);
+  const e = new Date(end_iso);
+  const day = fmtDayLondon.format(s);
+  const tFmt = withTZ ? fmtTimeLondonTZ : fmtTimeLondon;
+  return `${day}, ${tFmt.format(s)} – ${tFmt.format(e)}`;
+}
+
+
 
 /* ---------- Public API: slots (with all=true + holidays) ---------- */
 app.get('/api/slots', async (req, res) => {
@@ -576,18 +629,30 @@ app.get('/api/admin/slots', requireAdmin, async (_req, res) => {
 });
 
 app.post('/api/admin/slots', requireAdmin, async (req, res) => {
-  const { start_iso, location } = req.body || {};
-  if (!start_iso) return res.status(400).json({ error: 'MISSING_START' });
-
   try {
-    const start = new Date(start_iso);
-    const end = new Date(start.getTime() + 60 * 60 * 1000);
+    const force = String(req.query.force || 'false').toLowerCase() === 'true';
+    const { start_iso, location, duration_minutes } = req.body || {};
+    if (!start_iso) return res.status(400).json({ error: 'MISSING_START' });
+
+    // Interpret incoming local time, snap to top of hour, recompute end by duration
+    const startLocal = snapMinutes(new Date(start_iso), 60);
+    const durMin = Number.isFinite(Number(duration_minutes)) ? Number(duration_minutes) : 60;
+    const endLocal   = new Date(startLocal.getTime() + durMin * 60 * 1000);
+
+    // Validate against windows (unless force=true)
+    if (!force) {
+      const v = validateStartLondon(startLocal.toISOString(), location);
+      if (!v.ok) return res.status(400).json({ error: v.reason });
+    }
+
+    // Uniqueness on start_iso
+    const dup = await pGet(`SELECT id FROM slots WHERE start_iso=?`, [startLocal.toISOString()]);
+    if (dup) return res.status(409).json({ error: 'DUPLICATE_START' });
 
     const ins = await pRun(
-      `INSERT INTO slots (start_iso,end_iso,location) VALUES (?,?,?)`,
-      [start.toISOString(), end.toISOString(), location || null]
+      `INSERT INTO slots (start_iso,end_iso,location,is_booked) VALUES (?,?,?,0)`,
+      [startLocal.toISOString(), endLocal.toISOString(), location || null]
     );
-
     res.json({ ok: true, id: ins.lastID });
   } catch (e) {
     console.error(e);
