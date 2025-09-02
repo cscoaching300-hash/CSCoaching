@@ -119,10 +119,47 @@ const transporter = nodemailer.createTransport({
 
 function customerHtml({ name, email, start_iso, end_iso, location, credits, hero }) {
   const when = whenLondon(start_iso, end_iso, true); // shows BST/GMT
-  return `<!doctype html><html><body style="margin:0;padding:0;background:#000;">...<strong>${when}</strong>...`;
+  return `<!doctype html><html><body style="margin:0;padding:0;background:#000;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#000;">
+  <tr>
+    <td align="center" style="padding:24px 12px;">
+      <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:600px;max-width:100%;background:#0f0f0f;border:1px solid #1a1a1a;border-radius:12px;color:#fff;font-family:Arial,Helvetica,sans-serif;">
+        <tr>
+          <td align="center" style="padding:20px 16px 8px;">
+            ${hero
+              ? `<img src="cid:heroimg" alt="CSCoaching" width="600" style="display:block;width:100%;height:auto;border-radius:10px;border:0;outline:none;">`
+              : `<div style="font-size:24px;font-weight:700;letter-spacing:.5px;">CSCoaching</div>`}
+          </td>
+        </tr>
+        <tr><td style="height:1px;background:#1a1a1a;"></td></tr>
+        <tr>
+          <td style="padding:18px;font-size:16px;line-height:1.5;">
+            <p style="margin:0 0 10px;">Hi <strong>${name || email}</strong>,</p>
+            <p style="margin:0 0 14px;">Your coaching session is <span style="color:#31c553">confirmed</span> ✅</p>
+            <table role="presentation" width="100%" style="background:#0b0b0b;border:1px solid #1a1a1a;border-radius:10px;">
+              <tr><td style="padding:12px 14px 0;font-size:14px;color:#d0d0d0;">When</td></tr>
+              <tr><td style="padding:0 14px 10px;font-size:16px;color:#fff;"><strong>${when}</strong></td></tr>
+              <tr><td style="padding:0 14px 0;font-size:14px;color:#d0d0d0;">Location</td></tr>
+              <tr><td style="padding:0 14px 12px;font-size:16px;color:#fff;"><strong>${location || 'CSCoaching'}</strong></td></tr>
+              <tr>
+                <td style="padding:0 14px 14px;font-size:14px;color:#fff;">
+                  <span style="display:inline-block;background:#121212;border:1px solid #1a1a1a;border-radius:8px;padding:6px 10px;">
+                    Remaining session credits: <strong style="color:#e02424;">${Number.isFinite(credits) ? credits : '—'}</strong>
+                  </span>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:12px 0 0;color:#b5b5b5;font-size:12px;">Need to reschedule? Reply to this email.</p>
+            <p style="margin:6px 0 0;color:#b5b5b5;font-size:12px;">© CSCoaching • All rights reserved</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body></html>`;
 }
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#000;"><tr><td align="center" style="padding:24px 12px;"><table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:600px;max-width:100%;background:#0f0f0f;border:1px solid #1a1a1a;border-radius:12px;color:#fff;font-family:Arial,Helvetica,sans-serif;"><tr><td align="center" style="padding:20px 16px 8px;">${hero ? `<img src="cid:heroimg" alt="CSCoaching" width="600" style="display:block;width:100%;height:auto;border-radius:10px;border:0;outline:none;">` : `<div style="font-size:24px;font-weight:700;letter-spacing:.5px;">CSCoaching</div>`}</td></tr><tr><td style="height:1px;background:#1a1a1a;"></td></tr><tr><td style="padding:18px;font-size:16px;line-height:1.5;"><p style="margin:0 0 10px;">Hi <strong>${name || email}</strong>,</p><p style="margin:0 0 14px;">Your coaching session is <span style="color:#31c553">confirmed</span> ✅</p><table role="presentation" width="100%" style="background:#0b0b0b;border:1px solid #1a1a1a;border-radius:10px;"><tr><td style="padding:12px 14px 0;font-size:14px;color:#d0d0d0;">When</td></tr><tr><td style="padding:0 14px 10px;font-size:16px;color:#fff;"><strong>${when}</strong></td></tr><tr><td style="padding:0 14px 0;font-size:14px;color:#d0d0d0;">Location</td></tr><tr><td style="padding:0 14px 12px;font-size:16px;color:#fff;"><strong>${location || 'CSCoaching'}</strong></td></tr><tr><td style="padding:0 14px 14px;font-size:14px;color:#fff;"><span style="display:inline-block;background:#121212;border:1px solid #1a1a1a;border-radius:8px;padding:6px 10px;">Remaining session credits: <strong style="color:#e02424;">${typeof credits === 'number' ? credits : '—'}</strong></span></td></tr></table><p style="margin:12px 0 0;color:#b5b5b5;font-size:12px;">Need to reschedule? Reply to this email.</p><p style="margin:6px 0 0;color:#b5b5b5;font-size:12px;">© CSCoaching • All rights reserved</p></td></tr></table></td></tr></table></body></html>`;
-}
+
 async function sendCustomerEmail({ to, name, email, start_iso, end_iso, location, credits }) {
   const heroPath = fs.existsSync(path.join(__dirname, 'public', 'logo.png')) ? path.join(__dirname, 'public', 'logo.png') : null;
   await transporter.sendMail({
