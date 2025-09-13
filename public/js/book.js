@@ -279,12 +279,9 @@
 async function handleBooking() {
   if (!msg) return;
   msg.textContent = '';
-  hideBookingError(); // clear any previous error
+  hideBookingError();
 
-  if (!selectedSlots.length) {
-    showBookingError('MISSING_FIELDS', 'Pick at least one slot.');
-    return;
-  }
+  if (!selectedSlots.length) { showBookingError('MISSING_FIELDS', 'Pick at least one slot.'); return; }
   const email = (emailInput?.value || '').trim().toLowerCase();
   if (!email) { showBookingError('MISSING_FIELDS', 'Please enter your email.'); return; }
   if (honeypot?.value) { showBookingError('SPAM', 'Spam detected.'); return; }
@@ -293,7 +290,7 @@ async function handleBooking() {
   msg.textContent = 'Booking…';
 
   try {
-    // Try bulk first — server may or may not support it
+    // Try bulk first
     const bulkPayload = {
       slot_ids: selectedSlots.map(s => s.id),
       email,
@@ -308,18 +305,27 @@ async function handleBooking() {
       body: JSON.stringify(bulkPayload)
     });
 
-    // If bulk failed, decide whether to STOP (show friendly error) or FALL BACK
-        if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
+    // --- Helper to map status/error to friendly message
+    const mapServerError = async (resp) => {
+      let j = {};
+      try { j = await resp.json(); } catch {}
+      if (resp.status === 403) return showBookingError('NOT_MEMBER');
+      if (resp.status === 402) return showBookingError('NO_CREDITS');
+      if (j?.error && BOOKING_ERRORS[j.error]) return showBookingError(j.error);
+      return showBookingError(j?.error, 'Sorry, something went wrong.');
+    };
 
-      // 👉 FIRST: detect "bulk format not supported" / wrong body
+    if (!r.ok) {
+      // Check if the failure is because the body was "bulk" shaped — then fall back to singles
+      let j = {};
+      try { j = await r.json(); } catch {}
       const looksLikeSingleOnly =
         j?.error === 'MISSING_FIELDS' ||
         j?.error === 'BAD_BODY' ||
         j?.error === 'UNKNOWN_FIELD';
 
       if (looksLikeSingleOnly) {
-        // Fall back to one-by-one, even if there is only 1 selection
+        // Try each slot individually (stop on first failure)
         for (const s of selectedSlots) {
           const singlePayload = {
             slot_id: s.id,
@@ -335,50 +341,45 @@ async function handleBooking() {
             body: JSON.stringify(singlePayload)
           });
 
-          const j1 = await r1.json().catch(() => ({}));
-
-          if (!r1.ok || !j1.ok) {
-            // Map known server-enforced errors (e.g. NO_CREDITS, NOT_MEMBER…)
-            if (j1?.error && BOOKING_ERRORS[j1.error]) {
-              showBookingError(j1.error);
-            } else {
-              showBookingError(j1?.error, 'Sorry, something went wrong.');
-            }
+          if (!r1.ok) {
+            await mapServerError(r1);
             if (bookBtn) bookBtn.disabled = false;
             return;
+          } else {
+            // still read the body in case { ok:false }
+            const j1 = await r1.json().catch(() => ({}));
+            if (!j1.ok) {
+              // simulate error mapping via known code if present
+              if (j1?.error && BOOKING_ERRORS[j1.error]) showBookingError(j1.error);
+              else showBookingError(j1?.error, 'Sorry, something went wrong.');
+              if (bookBtn) bookBtn.disabled = false;
+              return;
+            }
           }
         }
-      } else if (j?.error && BOOKING_ERRORS[j.error]) {
-        // Real business-rule errors coming back from server
-        showBookingError(j.error);
-        if (bookBtn) bookBtn.disabled = false;
-        return;
       } else {
-        showBookingError(j?.error, 'Sorry, something went wrong.');
+        // Real error from bulk — map via status first
+        await mapServerError(r);
         if (bookBtn) bookBtn.disabled = false;
         return;
       }
     } else {
-      // Bulk call succeeded; still inspect body in case { ok:false }
-      const j = await r.json().catch(() => ({}));
-      if (!j.ok) {
-        if (j?.error && BOOKING_ERRORS[j.error]) {
-          showBookingError(j.error);
-        } else {
-          showBookingError(j?.error, 'Sorry, something went wrong.');
-        }
+      // Bulk succeeded — still ensure body ok:true
+      const jOk = await r.json().catch(() => ({}));
+      if (!jOk.ok) {
+        if (jOk?.error && BOOKING_ERRORS[jOk.error]) showBookingError(jOk.error);
+        else showBookingError(jOk?.error, 'Sorry, something went wrong.');
         if (bookBtn) bookBtn.disabled = false;
         return;
       }
     }
 
-    // ✅ Success path
+    // ✅ Success
     hideBookingError();
     msg.textContent = 'Success! Check your email for confirmation.';
     selectedSlots = [];
     if (emailInput) emailInput.value = '';
     if (notesInput) notesInput.value = '';
-
     await fetchSlots();
     renderCalendar();
     await loadCredits();
@@ -391,6 +392,7 @@ async function handleBooking() {
     if (bookBtn) bookBtn.disabled = false;
   }
 }
+
 
   /* ---------- Init ---------- */
   window.addEventListener('DOMContentLoaded', async () => {
