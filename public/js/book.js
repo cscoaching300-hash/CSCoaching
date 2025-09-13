@@ -68,6 +68,26 @@
     } catch {}
   }
 
+  const BOOKING_ERRORS = {
+    NOT_MEMBER:  "You need to be an invited member to book. Please contact Clare.",
+    NO_CREDITS:  "You’ve run out of session credits. Top up to book another session.",
+    SLOT_ALREADY_BOOKED: "Sorry, that slot was just taken. Please pick another.",
+    MISSING_FIELDS: "Please enter all required details.",
+    HOUR_NOT_ALLOWED: "That start time isn’t available for bookings.",
+    DAY_NOT_ALLOWED: "That day isn’t available for bookings."
+  };
+
+  function showBookingError(code, fallback) {
+    const el = document.getElementById('bookError');
+    if (!el) { alert(BOOKING_ERRORS[code] || fallback || "Something went wrong. Please try again."); return; }
+    el.textContent = BOOKING_ERRORS[code] || fallback || "Something went wrong. Please try again.";
+    el.style.display = 'block';
+  }
+
+  function hideBookingError() {
+    const el = document.getElementById('bookError');
+    if (el) el.style.display = 'none';
+  }
   async function fetchSlots() {
     // Ask server for all slots + holidays (max 60 daysso the UI isn't empty)
     const base = '/api/slots?onlyAvailable=true&all=true&includeHolidays=true&maxDays=60';
@@ -255,15 +275,19 @@
     }
   }
 
-  /* ---------- Booking (bulk with fallback) ---------- */
+    /* ---------- Booking (bulk with fallback) ---------- */
   async function handleBooking() {
     if (!msg) return;
     msg.textContent = '';
+    hideBookingError(); // 🧼 clear previous errors
 
-    if (!selectedSlots.length) { msg.textContent = 'Pick at least one slot.'; return; }
+    if (!selectedSlots.length) {
+      showBookingError('MISSING_FIELDS', 'Pick at least one slot.');
+      return;
+    }
     const email = (emailInput?.value || '').trim().toLowerCase();
-    if (!email) { msg.textContent = 'Please enter your email.'; return; }
-    if (honeypot?.value) { msg.textContent = 'Spam detected.'; return; }
+    if (!email) { showBookingError('MISSING_FIELDS', 'Please enter your email.'); return; }
+    if (honeypot?.value) { showBookingError('SPAM', 'Spam detected.'); return; }
 
     if (bookBtn) bookBtn.disabled = true;
     msg.textContent = 'Booking…';
@@ -293,6 +317,7 @@
           j?.error === 'UNKNOWN_FIELD';
 
         if (looksLikeSingleOnly || selectedSlots.length > 1) {
+          // Try each slot individually, bail on first failure
           for (const s of selectedSlots) {
             const singlePayload = {
               slot_id: s.id,
@@ -308,18 +333,28 @@
             });
             const j1 = await r1.json().catch(() => ({}));
             if (!r1.ok || !j1.ok) {
-              msg.textContent = j1.error || 'Sorry, something went wrong.';
+              showBookingError(j1?.error, 'Sorry, something went wrong.');
               if (bookBtn) bookBtn.disabled = false;
               return;
             }
           }
         } else {
-          msg.textContent = j?.error || 'Sorry, something went wrong.';
+          showBookingError(j?.error, 'Sorry, something went wrong.');
+          if (bookBtn) bookBtn.disabled = false;
+          return;
+        }
+      } else {
+        // bulk call succeeded; still check body in case of ok:false
+        const j = await r.json().catch(() => ({}));
+        if (!j.ok) {
+          showBookingError(j?.error, 'Sorry, something went wrong.');
           if (bookBtn) bookBtn.disabled = false;
           return;
         }
       }
 
+      // ✅ Success: clear error, show success, refresh data
+      hideBookingError();
       msg.textContent = 'Success! Check your email for confirmation.';
       selectedSlots = [];
       if (emailInput) emailInput.value = '';
@@ -328,13 +363,15 @@
       renderCalendar();
       await loadCredits();
       if (bookBtn) bookBtn.disabled = true;
+
     } catch (e) {
       console.error(e);
-      msg.textContent = 'Network error.';
+      showBookingError('NETWORK', 'Network error.');
     } finally {
       if (bookBtn) bookBtn.disabled = false;
     }
   }
+
 
   /* ---------- Init ---------- */
   window.addEventListener('DOMContentLoaded', async () => {
