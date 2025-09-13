@@ -309,26 +309,17 @@ async function handleBooking() {
     });
 
     // If bulk failed, decide whether to STOP (show friendly error) or FALL BACK
-    if (!r.ok) {
+        if (!r.ok) {
       const j = await r.json().catch(() => ({}));
 
-      // If the server returned a meaningful booking error, surface it and STOP.
-      // These are enforced by the server: NOT_MEMBER, NO_CREDITS, SLOT_ALREADY_BOOKED, etc.
-      if (j?.error && BOOKING_ERRORS[j.error]) {
-        showBookingError(j.error);
-        if (bookBtn) bookBtn.disabled = false;
-        return;
-      }
-
-      // Only fall back when it looks like the server rejected the *bulk format*,
-      // NOT the booking rules.
+      // 👉 FIRST: detect "bulk format not supported" / wrong body
       const looksLikeSingleOnly =
         j?.error === 'MISSING_FIELDS' ||
         j?.error === 'BAD_BODY' ||
         j?.error === 'UNKNOWN_FIELD';
 
-      if (looksLikeSingleOnly && selectedSlots.length > 1) {
-        // Try each slot individually. Bail out on first failure and show the error.
+      if (looksLikeSingleOnly) {
+        // Fall back to one-by-one, even if there is only 1 selection
         for (const s of selectedSlots) {
           const singlePayload = {
             slot_id: s.id,
@@ -336,16 +327,18 @@ async function handleBooking() {
             notes: (notesInput?.value || '').trim(),
             website: honeypot?.value || ''
           };
+
           const r1 = await fetch('/api/book', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
             body: JSON.stringify(singlePayload)
           });
+
           const j1 = await r1.json().catch(() => ({}));
 
           if (!r1.ok || !j1.ok) {
-            // If it’s a known error from the server, map it nicely
+            // Map known server-enforced errors (e.g. NO_CREDITS, NOT_MEMBER…)
             if (j1?.error && BOOKING_ERRORS[j1.error]) {
               showBookingError(j1.error);
             } else {
@@ -355,6 +348,11 @@ async function handleBooking() {
             return;
           }
         }
+      } else if (j?.error && BOOKING_ERRORS[j.error]) {
+        // Real business-rule errors coming back from server
+        showBookingError(j.error);
+        if (bookBtn) bookBtn.disabled = false;
+        return;
       } else {
         showBookingError(j?.error, 'Sorry, something went wrong.');
         if (bookBtn) bookBtn.disabled = false;
