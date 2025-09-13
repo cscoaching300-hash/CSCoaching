@@ -508,3 +508,12 @@ body { background:#0b0b0b; color:#eee; font-family: Inter, system-ui, sans-serif
 @media (max-width: 580px) {
   .cal-grid { grid-template-columns: 1fr !important; }
 }
+
+/* in public/css/site.css or inline */
+#error, #bookError {
+  background: #2a0e10;
+  border: 1px solid #e02424;
+  color: #ffd9da;
+  padding: 8px 10px;
+  border-radius: 10px;
+}
