@@ -275,103 +275,124 @@
     }
   }
 
-    /* ---------- Booking (bulk with fallback) ---------- */
-  async function handleBooking() {
-    if (!msg) return;
-    msg.textContent = '';
-    hideBookingError(); // 🧼 clear previous errors
+    /* ---------- Booking (bulk with guarded fallback + friendly errors) ---------- */
+async function handleBooking() {
+  if (!msg) return;
+  msg.textContent = '';
+  hideBookingError(); // clear any previous error
 
-    if (!selectedSlots.length) {
-      showBookingError('MISSING_FIELDS', 'Pick at least one slot.');
-      return;
-    }
-    const email = (emailInput?.value || '').trim().toLowerCase();
-    if (!email) { showBookingError('MISSING_FIELDS', 'Please enter your email.'); return; }
-    if (honeypot?.value) { showBookingError('SPAM', 'Spam detected.'); return; }
+  if (!selectedSlots.length) {
+    showBookingError('MISSING_FIELDS', 'Pick at least one slot.');
+    return;
+  }
+  const email = (emailInput?.value || '').trim().toLowerCase();
+  if (!email) { showBookingError('MISSING_FIELDS', 'Please enter your email.'); return; }
+  if (honeypot?.value) { showBookingError('SPAM', 'Spam detected.'); return; }
 
-    if (bookBtn) bookBtn.disabled = true;
-    msg.textContent = 'Booking…';
+  if (bookBtn) bookBtn.disabled = true;
+  msg.textContent = 'Booking…';
 
-    try {
-      // Try bulk (server may not support; we’ll fall back)
-      const bulkPayload = {
-        slot_ids: selectedSlots.map(s => s.id),
-        email,
-        notes: (notesInput?.value || '').trim(),
-        website: honeypot?.value || ''
-      };
+  try {
+    // Try bulk first — server may or may not support it
+    const bulkPayload = {
+      slot_ids: selectedSlots.map(s => s.id),
+      email,
+      notes: (notesInput?.value || '').trim(),
+      website: honeypot?.value || ''
+    };
 
-      let r = await fetch('/api/book', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify(bulkPayload)
-      });
+    let r = await fetch('/api/book', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(bulkPayload)
+    });
 
-      // Fallback to sequential singles if needed
-      if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
-        const looksLikeSingleOnly =
-          j?.error === 'MISSING_FIELDS' ||
-          j?.error === 'BAD_BODY' ||
-          j?.error === 'UNKNOWN_FIELD';
+    // If bulk failed, decide whether to STOP (show friendly error) or FALL BACK
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
 
-        if (looksLikeSingleOnly || selectedSlots.length > 1) {
-          // Try each slot individually, bail on first failure
-          for (const s of selectedSlots) {
-            const singlePayload = {
-              slot_id: s.id,
-              email,
-              notes: (notesInput?.value || '').trim(),
-              website: honeypot?.value || ''
-            };
-            const r1 = await fetch('/api/book', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'same-origin',
-              body: JSON.stringify(singlePayload)
-            });
-            const j1 = await r1.json().catch(() => ({}));
-            if (!r1.ok || !j1.ok) {
-              showBookingError(j1?.error, 'Sorry, something went wrong.');
-              if (bookBtn) bookBtn.disabled = false;
-              return;
-            }
-          }
-        } else {
-          showBookingError(j?.error, 'Sorry, something went wrong.');
-          if (bookBtn) bookBtn.disabled = false;
-          return;
-        }
-      } else {
-        // bulk call succeeded; still check body in case of ok:false
-        const j = await r.json().catch(() => ({}));
-        if (!j.ok) {
-          showBookingError(j?.error, 'Sorry, something went wrong.');
-          if (bookBtn) bookBtn.disabled = false;
-          return;
-        }
+      // If the server returned a meaningful booking error, surface it and STOP.
+      // These are enforced by the server: NOT_MEMBER, NO_CREDITS, SLOT_ALREADY_BOOKED, etc.
+      if (j?.error && BOOKING_ERRORS[j.error]) {
+        showBookingError(j.error);
+        if (bookBtn) bookBtn.disabled = false;
+        return;
       }
 
-      // ✅ Success: clear error, show success, refresh data
-      hideBookingError();
-      msg.textContent = 'Success! Check your email for confirmation.';
-      selectedSlots = [];
-      if (emailInput) emailInput.value = '';
-      if (notesInput) notesInput.value = '';
-      await fetchSlots();
-      renderCalendar();
-      await loadCredits();
-      if (bookBtn) bookBtn.disabled = true;
+      // Only fall back when it looks like the server rejected the *bulk format*,
+      // NOT the booking rules.
+      const looksLikeSingleOnly =
+        j?.error === 'MISSING_FIELDS' ||
+        j?.error === 'BAD_BODY' ||
+        j?.error === 'UNKNOWN_FIELD';
 
-    } catch (e) {
-      console.error(e);
-      showBookingError('NETWORK', 'Network error.');
-    } finally {
-      if (bookBtn) bookBtn.disabled = false;
+      if (looksLikeSingleOnly && selectedSlots.length > 1) {
+        // Try each slot individually. Bail out on first failure and show the error.
+        for (const s of selectedSlots) {
+          const singlePayload = {
+            slot_id: s.id,
+            email,
+            notes: (notesInput?.value || '').trim(),
+            website: honeypot?.value || ''
+          };
+          const r1 = await fetch('/api/book', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(singlePayload)
+          });
+          const j1 = await r1.json().catch(() => ({}));
+
+          if (!r1.ok || !j1.ok) {
+            // If it’s a known error from the server, map it nicely
+            if (j1?.error && BOOKING_ERRORS[j1.error]) {
+              showBookingError(j1.error);
+            } else {
+              showBookingError(j1?.error, 'Sorry, something went wrong.');
+            }
+            if (bookBtn) bookBtn.disabled = false;
+            return;
+          }
+        }
+      } else {
+        showBookingError(j?.error, 'Sorry, something went wrong.');
+        if (bookBtn) bookBtn.disabled = false;
+        return;
+      }
+    } else {
+      // Bulk call succeeded; still inspect body in case { ok:false }
+      const j = await r.json().catch(() => ({}));
+      if (!j.ok) {
+        if (j?.error && BOOKING_ERRORS[j.error]) {
+          showBookingError(j.error);
+        } else {
+          showBookingError(j?.error, 'Sorry, something went wrong.');
+        }
+        if (bookBtn) bookBtn.disabled = false;
+        return;
+      }
     }
-  }
 
+    // ✅ Success path
+    hideBookingError();
+    msg.textContent = 'Success! Check your email for confirmation.';
+    selectedSlots = [];
+    if (emailInput) emailInput.value = '';
+    if (notesInput) notesInput.value = '';
+
+    await fetchSlots();
+    renderCalendar();
+    await loadCredits();
+    if (bookBtn) bookBtn.disabled = true;
+
+  } catch (e) {
+    console.error(e);
+    showBookingError('NETWORK', 'Network error.');
+  } finally {
+    if (bookBtn) bookBtn.disabled = false;
+  }
+}
 
   /* ---------- Init ---------- */
   window.addEventListener('DOMContentLoaded', async () => {

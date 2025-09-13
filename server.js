@@ -190,6 +190,57 @@ async function sendActivationEmail({ to, name, token }) {
   await transporter.sendMail({ from: `"CSCoaching" <${process.env.SMTP_USER}>`, to, subject: 'Activate your CSCoaching account', html });
 }
 
+async function sendZeroCreditsEmail({ member, slot }) {
+  const when = whenLondon(slot.start_iso, slot.end_iso, true); // uses your earlier helper
+  const text = `Heads up — ${member.name || member.email} now has 0 credits.
+
+Member: ${member.name || ''} <${member.email}>
+When:   ${when}
+Where:  ${slot.location || ''}`;
+
+  await transporter.sendMail({
+    from: `"CSCoaching" <${process.env.SMTP_USER}>`,
+    to: process.env.ADMIN_EMAIL || process.env.SMTP_USER,
+    subject: '⚠️ Member credits reached 0',
+    text,
+  });
+}
+async function sendZeroCreditsEmail({ member, slot }) {
+  try {
+    const s = new Date(slot.start_iso), e = new Date(slot.end_iso);
+    const when = `${s.toLocaleDateString([], {
+      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+    })}, ${s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – ${e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+    // Notify the member
+    await transporter.sendMail({
+      from: `"CSCoaching" <${process.env.SMTP_USER}>`,
+      to: member.email,
+      subject: 'You’ve used your last CSCoaching session credit',
+      text: `Hi ${member.name || member.email},
+
+Thanks for booking. That booking used your last remaining session credit.
+Details: ${when}${slot.location ? ` @ ${slot.location}` : ''}
+
+Reply to this email if you’d like to top up your credits, or message Clare directly.
+
+— CSCoaching`,
+    });
+
+    // Let the admin know too (optional but requested)
+    await transporter.sendMail({
+      from: `"CSCoaching" <${process.env.SMTP_USER}>`,
+      to: process.env.ADMIN_EMAIL || process.env.SMTP_USER,
+      subject: 'Member has hit 0 credits',
+      text: `Member ${member.name || member.email} has just hit 0 credits after booking.
+When: ${when}${slot.location ? ` @ ${slot.location}` : ''}`
+    });
+  } catch (e) {
+    console.error('sendZeroCreditsEmail failed:', e);
+  }
+}
+
+
 /* ---------- Helpers ---------- */
 function requireAdmin(req, res, next) {
   const k = req.header('X-ADMIN-KEY');
@@ -420,36 +471,97 @@ app.get('/api/slots', async (req, res) => {
 });
 
 
-/* ---------- Booking (no login needed) ---------- */
+/* ---------- Booking (must be a member with credits > 0) ---------- */
 app.post('/api/book', async (req, res) => {
-  try {
-    const { slot_id, email, notes } = req.body || {};
-    if (!slot_id || !email) return res.status(400).json({ error: 'MISSING_FIELDS' });
+  const { slot_id, email, notes } = req.body || {};
+  if (!slot_id || !email) return res.status(400).json({ error: 'MISSING_FIELDS' });
 
+  try {
     const slot = await pGet(`SELECT * FROM slots WHERE id=?`, [slot_id]);
     if (!slot) return res.status(404).json({ error: 'SLOT_NOT_FOUND' });
     if (slot.is_booked) return res.status(400).json({ error: 'SLOT_ALREADY_BOOKED' });
 
-    let member = await pGet(`SELECT * FROM members WHERE lower(email)=lower(?)`, [email]);
-    if (!member) {
-      const ins = await pRun(`INSERT INTO members (name,email,credits) VALUES (?,?,?)`, [null, email, 0]);
-      member = await pGet(`SELECT * FROM members WHERE id=?`, [ins.lastID]);
+    // Must already be a member
+    const member = await pGet(
+      `SELECT id, name, email, credits FROM members WHERE lower(email)=lower(?)`,
+      [email]
+    );
+    if (!member) return res.status(403).json({ error: 'NOT_MEMBER' });
+
+    // Must have > 0 credits
+    if (!Number.isFinite(member.credits) || member.credits <= 0) {
+      return res.status(402).json({ error: 'NO_CREDITS' });
     }
 
-    const insBk = await pRun(`INSERT INTO bookings (member_id,slot_id,notes) VALUES (?,?,?)`, [member.id, slot.id, notes || null]);
-    await pRun(`UPDATE slots SET is_booked=1 WHERE id=?`, [slot.id]);
+    // Transaction: decrement credit -> create booking -> mark slot booked
+    await pRun(`BEGIN`);
+    try {
+      // Guarded decrement: only decrement if credits > 0
+      const dec = await pRun(
+        `UPDATE members SET credits = credits - 1 WHERE id = ? AND credits > 0`,
+        [member.id]
+      );
+      if (!dec.changes) {
+        await pRun(`ROLLBACK`);
+        return res.status(402).json({ error: 'NO_CREDITS' });
+      }
 
-    let remaining = member.credits;
-    if (remaining > 0) {
-      await pRun(`UPDATE members SET credits=credits-1 WHERE id=? AND credits>0`, [member.id]);
-      remaining = (await pGet(`SELECT credits FROM members WHERE id=?`, [member.id])).credits;
+      const insBk = await pRun(
+        `INSERT INTO bookings (member_id,slot_id,notes) VALUES (?,?,?)`,
+        [member.id, slot.id, notes || null]
+      );
+
+      const updSlot = await pRun(
+        `UPDATE slots SET is_booked = 1 WHERE id = ? AND is_booked = 0`,
+        [slot.id]
+      );
+      if (!updSlot.changes) {
+        // Slot suddenly taken — undo credit
+        await pRun(`UPDATE members SET credits = credits + 1 WHERE id = ?`, [member.id]);
+        await pRun(`ROLLBACK`);
+        return res.status(409).json({ error: 'SLOT_ALREADY_BOOKED' });
+      }
+
+      // Fetch new balance
+      const after = await pGet(`SELECT credits FROM members WHERE id=?`, [member.id]);
+
+      await pRun(`COMMIT`);
+
+      // Emails (fire and forget)
+      sendAdminEmail({
+        start_iso: slot.start_iso,
+        end_iso: slot.end_iso,
+        location: slot.location,
+        name: member.name,
+        email: member.email
+      }).catch(console.error);
+
+      sendCustomerEmail({
+        to: member.email,
+        name: member.name,
+        email: member.email,
+        start_iso: slot.start_iso,
+        end_iso: slot.end_iso,
+        location: slot.location,
+        credits: after.credits
+      }).catch(console.error);
+
+      // If this booking dropped them to 0, alert admin
+      if (Number(after.credits) === 0) {
+        sendZeroCreditsEmail({ member, slot }).catch(console.error);
+      }
+
+      return res.json({ ok: true, booking_id: insBk.lastID, credits: after.credits });
+    } catch (inner) {
+      // Best-effort rollback if anything failed mid-transaction
+      try { await pRun(`ROLLBACK`); } catch {}
+      console.error('BOOK TX ERROR:', inner);
+      return res.status(500).json({ error: 'SERVER_ERROR' });
     }
-
-    sendAdminEmail({ start_iso: slot.start_iso, end_iso: slot.end_iso, location: slot.location, name: member.name, email }).catch(console.error);
-    sendCustomerEmail({ to: email, name: member.name, email, start_iso: slot.start_iso, end_iso: slot.end_iso, location: slot.location, credits: remaining }).catch(console.error);
-
-    res.json({ ok: true, booking_id: insBk.lastID, credits: remaining });
-  } catch (e) { console.error(e); res.status(500).json({ error: 'SERVER_ERROR' }); }
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'SERVER_ERROR' });
+  }
 });
 
 /* ---------- Auth & member APIs ---------- */
