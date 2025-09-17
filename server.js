@@ -24,17 +24,24 @@ const useTurso = !!process.env.TURSO_DATABASE_URL;
 
 let db; // adapter exposing sqlite-like callbacks: run/get/all/serialize
 let DATA_DIR;
+let db;                // sqlite-like adapter
+let DATA_DIR;
+let tursoClient = null; // NEW: raw libsql client for transactions
+
 
 if (useTurso) {
   const { createClient } = require('@libsql/client');
-  const client = createClient({
+
+  // Keep a reference to the raw client for transactions
+  tursoClient = createClient({
     url: process.env.TURSO_DATABASE_URL,
     authToken: process.env.TURSO_AUTH_TOKEN,
   });
 
+  // sqlite-like adapter for run/get/all
   db = {
     run(sql, params = [], cb = () => {}) {
-      client.execute({ sql, args: params })
+      tursoClient.execute({ sql, args: params })
         .then(res => cb(null, {
           lastID: Number(res.lastInsertRowid || 0),
           changes: res.rowsAffected || 0
@@ -42,24 +49,19 @@ if (useTurso) {
         .catch(err => cb(err));
     },
     get(sql, params = [], cb = () => {}) {
-      client.execute({ sql, args: params })
+      tursoClient.execute({ sql, args: params })
         .then(res => cb(null, res.rows?.[0] || null))
         .catch(err => cb(err));
     },
     all(sql, params = [], cb = () => {}) {
-      client.execute({ sql, args: params })
+      tursoClient.execute({ sql, args: params })
         .then(res => cb(null, res.rows || []))
         .catch(err => cb(err));
     },
     serialize(fn) { fn(); }
   };
 } else {
-  // Local dev only
-  const sqlite3 = require('sqlite3').verbose();
-  DATA_DIR = path.join(__dirname, 'data');
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  const sqlite = new sqlite3.Database(path.join(DATA_DIR, 'app.sqlite'));
-  db = sqlite;
+  // ... keep your local sqlite block as-is
 }
 
 /* ---------- Security & middleware ---------- */
@@ -262,6 +264,45 @@ const pGet = (sql, params = []) => new Promise((resolve, reject) =>
 const pAll = (sql, params = []) => new Promise((resolve, reject) =>
   db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows))
 );
+
+// Transaction wrapper that uses Turso's tx API in prod and BEGIN/COMMIT locally
+async function withTx(execFn) {
+  if (useTurso) {
+    const tx = await tursoClient.transaction();
+    const tRun = (sql, params=[]) => tx.execute({ sql, args: params });
+    try {
+      const out = await execFn({ tRun });
+      await tx.commit();
+      return out;
+    } catch (e) {
+      try { await tx.rollback(); } catch {}
+      throw e;
+    }
+  } else {
+    await pRun('BEGIN');
+    try {
+      const out = await execFn({
+        tRun: async (sql, params=[]) => pRun(sql, params)
+      });
+      await pRun('COMMIT');
+      return out;
+    } catch (e) {
+      try { await pRun('ROLLBACK'); } catch {}
+      throw e;
+    }
+  }
+}
+
+// Helper to read credits inside tx (works for both turso/local)
+async function txGetCredits(tRun, memberId) {
+  const q = await tRun(`SELECT credits FROM members WHERE id=?`, [memberId]);
+  const row = q.rows?.[0] || null; // turso path
+  if (row && row.credits !== undefined) return Number(row.credits);
+  // local fallback (SELECT via pRun doesn't return rows), re-select outside tx:
+  const r = await pGet(`SELECT credits FROM members WHERE id=?`, [memberId]);
+  return Number(r?.credits || 0);
+}
+
 
 /* ---------- Slot filter & API ---------- */
 // --- helper: extract hour in Europe/London (0-23) ---
@@ -470,97 +511,92 @@ app.get('/api/slots', async (req, res) => {
   }
 });
 
-
 /* ---------- Booking (must be a member with credits > 0) ---------- */
 app.post('/api/book', async (req, res) => {
-  const { slot_id, email, notes } = req.body || {};
-  if (!slot_id || !email) return res.status(400).json({ error: 'MISSING_FIELDS' });
+  const slotId = Number(req.body?.slotId ?? req.body?.slot_id);
+  const email  = (req.body?.email || '').toLowerCase().trim();
+  const notes  = (req.body?.notes || null);
+
+  if (!slotId || !email) return res.status(400).json({ error: 'MISSING_FIELDS' });
 
   try {
-    const slot = await pGet(`SELECT * FROM slots WHERE id=?`, [slot_id]);
+    const slot = await pGet(`SELECT * FROM slots WHERE id=?`, [slotId]);
     if (!slot) return res.status(404).json({ error: 'SLOT_NOT_FOUND' });
-    if (slot.is_booked) return res.status(400).json({ error: 'SLOT_ALREADY_BOOKED' });
+    if (Number(slot.is_booked)) return res.status(409).json({ error: 'SLOT_ALREADY_BOOKED' });
 
-    // Must already be a member
     const member = await pGet(
       `SELECT id, name, email, credits FROM members WHERE lower(email)=lower(?)`,
       [email]
     );
     if (!member) return res.status(403).json({ error: 'NOT_MEMBER' });
-
-    // Must have > 0 credits
     if (!Number.isFinite(member.credits) || member.credits <= 0) {
       return res.status(402).json({ error: 'NO_CREDITS' });
     }
 
-    // Transaction: decrement credit -> create booking -> mark slot booked
-    await pRun(`BEGIN`);
-    try {
-      // Guarded decrement: only decrement if credits > 0
-      const dec = await pRun(
+    const result = await withTx(async ({ tRun }) => {
+      // decrement only if > 0
+      const dec = await tRun(
         `UPDATE members SET credits = credits - 1 WHERE id = ? AND credits > 0`,
         [member.id]
       );
-      if (!dec.changes) {
-        await pRun(`ROLLBACK`);
-        return res.status(402).json({ error: 'NO_CREDITS' });
-      }
+      const decChanges = (dec.rowsAffected ?? dec.changes ?? 0);
+      if (!decChanges) return { ok:false, code:402, error:'NO_CREDITS' };
 
-      const insBk = await pRun(
-        `INSERT INTO bookings (member_id,slot_id,notes) VALUES (?,?,?)`,
-        [member.id, slot.id, notes || null]
-      );
-
-      const updSlot = await pRun(
+      // mark slot booked
+      const upd = await tRun(
         `UPDATE slots SET is_booked = 1 WHERE id = ? AND is_booked = 0`,
-        [slot.id]
+        [slotId]
       );
-      if (!updSlot.changes) {
-        // Slot suddenly taken — undo credit
-        await pRun(`UPDATE members SET credits = credits + 1 WHERE id = ?`, [member.id]);
-        await pRun(`ROLLBACK`);
-        return res.status(409).json({ error: 'SLOT_ALREADY_BOOKED' });
+      const updChanges = (upd.rowsAffected ?? upd.changes ?? 0);
+      if (!updChanges) {
+        await tRun(`UPDATE members SET credits = credits + 1 WHERE id = ?`, [member.id]);
+        return { ok:false, code:409, error:'SLOT_ALREADY_BOOKED' };
       }
 
-      // Fetch new balance
-      const after = await pGet(`SELECT credits FROM members WHERE id=?`, [member.id]);
+      // create booking
+      const ins = await tRun(
+        `INSERT INTO bookings (member_id,slot_id,notes) VALUES (?,?,?)`,
+        [member.id, slotId, notes]
+      );
 
-      await pRun(`COMMIT`);
+      const credits = await txGetCredits(tRun, member.id);
 
-      // Emails (fire and forget)
-      sendAdminEmail({
-        start_iso: slot.start_iso,
-        end_iso: slot.end_iso,
-        location: slot.location,
-        name: member.name,
-        email: member.email
-      }).catch(console.error);
+      return {
+        ok: true,
+        bookingId: Number(ins.lastInsertRowid || ins.lastID || 0),
+        credits: credits
+      };
+    });
 
-      sendCustomerEmail({
-        to: member.email,
-        name: member.name,
-        email: member.email,
-        start_iso: slot.start_iso,
-        end_iso: slot.end_iso,
-        location: slot.location,
-        credits: after.credits
-      }).catch(console.error);
+    if (!result.ok) return res.status(result.code).json({ error: result.error });
 
-      // If this booking dropped them to 0, alert admin
-      if (Number(after.credits) === 0) {
-        sendZeroCreditsEmail({ member, slot }).catch(console.error);
-      }
+    // Side-effects AFTER commit
+    sendAdminEmail({
+      start_iso: slot.start_iso,
+      end_iso: slot.end_iso,
+      location: slot.location,
+      name: member.name,
+      email: member.email
+    }).catch(console.error);
 
-      return res.json({ ok: true, booking_id: insBk.lastID, credits: after.credits });
-    } catch (inner) {
-      // Best-effort rollback if anything failed mid-transaction
-      try { await pRun(`ROLLBACK`); } catch {}
-      console.error('BOOK TX ERROR:', inner);
-      return res.status(500).json({ error: 'SERVER_ERROR' });
+    sendCustomerEmail({
+      to: member.email,
+      name: member.name,
+      email: member.email,
+      start_iso: slot.start_iso,
+      end_iso: slot.end_iso,
+      location: slot.location,
+      credits: result.credits
+    }).catch(console.error);
+
+    if (result.credits === 0) {
+      sendZeroCreditsEmail({ member, slot }).catch(console.error);
     }
+
+    return res.status(201).json({ ok: true, booking_id: result.bookingId, credits: result.credits });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'SERVER_ERROR' });
+    console.error('BOOK TX ERROR:', e);
+    return res.status(500).json({ error: 'SERVER_ERROR' });
   }
 });
 
