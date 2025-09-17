@@ -22,8 +22,6 @@ const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
 /* ---------- Database: Turso in production; sqlite locally ---------- */
 const useTurso = !!process.env.TURSO_DATABASE_URL;
 
-let db; // adapter exposing sqlite-like callbacks: run/get/all/serialize
-let DATA_DIR;
 let db;                // sqlite-like adapter
 let DATA_DIR;
 let tursoClient = null; // NEW: raw libsql client for transactions
