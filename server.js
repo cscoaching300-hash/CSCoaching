@@ -719,19 +719,36 @@ app.get('/api/admin/bookings', requireAdmin, async (_req, res) => {
 });
 
 app.get('/api/admin/members', requireAdmin, async (_req, res) => {
+  const q = `SELECT id, name, email, credits, COALESCE(paid,0) AS paid
+               FROM members
+              ORDER BY id DESC`;
   try {
-    const rows = await pAll(
-      `SELECT id, name, email, credits, COALESCE(paid,0) AS paid
-         FROM members
-        ORDER BY id DESC`,
-      []
-    );
-    res.json({ ok: true, members: rows });
+    let rows;
+    try {
+      // try assuming 'paid' exists
+      rows = await pAll(q, []);
+    } catch (e) {
+      const msg = (e && e.message || '').toLowerCase();
+      // if the column doesn't exist yet, add it and retry once
+      if (msg.includes('no such column: paid')) {
+        try {
+          await pRun(`ALTER TABLE members ADD COLUMN paid INTEGER NOT NULL DEFAULT 0`);
+          rows = await pAll(q, []);
+        } catch (e2) {
+          console.error('auto-add paid column failed:', e2);
+          throw e2;
+        }
+      } else {
+        throw e;
+      }
+    }
+    return res.json({ ok: true, members: rows });
   } catch (e) {
     console.error('GET /api/admin/members error:', e);
-    res.status(500).json({ error: 'DB_ERROR' });
+    return res.status(500).json({ error: 'DB_ERROR' });
   }
 });
+
 
 app.post('/api/admin/members', requireAdmin, async (req, res) => {
   try {
