@@ -109,6 +109,21 @@ db.serialize(() => {
   )`);
 });
 
+// --- Ensure 'paid' column on members (0/1), idempotent ---
+(async () => {
+  try {
+    const cols = await pAll(`PRAGMA table_info(members)`);
+    const hasPaid = (cols || []).some(c => String(c.name).toLowerCase() === 'paid');
+    if (!hasPaid) {
+      await pRun(`ALTER TABLE members ADD COLUMN paid INTEGER NOT NULL DEFAULT 0`);
+      console.log('[migrate] members.paid added');
+    }
+  } catch (e) {
+    console.error('[migrate] paid column check/add failed:', e);
+  }
+})();
+
+
 /* ---------- Email ---------- */
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -706,9 +721,9 @@ app.get('/api/admin/bookings', requireAdmin, async (_req, res) => {
 app.get('/api/admin/members', requireAdmin, async (_req, res) => {
   try {
     const rows = await pAll(
-      `SELECT id, name, email, credits
+      `SELECT id, name, email, credits, COALESCE(paid,0) AS paid
          FROM members
-        ORDER BY created_at DESC`,
+        ORDER BY id DESC`,
       []
     );
     res.json({ ok: true, members: rows });
@@ -780,15 +795,18 @@ app.post('/api/admin/members', requireAdmin, async (req, res) => {
 });
 
 app.patch('/api/admin/members/:id', requireAdmin, async (req, res) => {
-  let { credits, name } = req.body || {};
+  let { credits, name, paid } = req.body || {};
   try {
-    credits = (credits !== undefined && credits !== null && credits !== '') ? Number(credits) : null;
+    const creditsVal = (credits !== undefined && credits !== null && credits !== '') ? Number(credits) : null;
+    const paidVal = (paid === undefined || paid === null || paid === '') ? null : (paid ? 1 : 0);
+
     await pRun(
       `UPDATE members
-       SET credits = COALESCE(?, credits),
-           name    = COALESCE(?, name)
+         SET credits = COALESCE(?, credits),
+             name    = COALESCE(?, name),
+             paid    = COALESCE(?, paid)
        WHERE id = ?`,
-      [credits, name || null, req.params.id]
+      [creditsVal, name || null, paidVal, req.params.id]
     );
     res.json({ ok: true });
   } catch (e) {
@@ -796,6 +814,7 @@ app.patch('/api/admin/members/:id', requireAdmin, async (req, res) => {
     res.status(500).json({ error: 'DB_ERROR' });
   }
 });
+
 
 app.delete('/api/admin/members/:id', requireAdmin, async (req, res) => {
   try {
@@ -1161,6 +1180,31 @@ app.post('/api/admin/slots/bulk', requireAdmin, async (req, res) => {
   } catch (e) {
     console.error('POST /api/admin/slots/bulk error:', e);
     return res.status(500).json({ error: 'DB_ERROR' });
+  }
+});
+
+async function issueInvite(memberId, inviteName, email) {
+  const token = uuidv4();
+  const expiresISO = new Date(Date.now() + 7*24*60*60*1000).toISOString();
+  await pRun(
+    `INSERT INTO invites (id, member_id, expires_at, used)
+     VALUES (?, ?, ?, ?)`,
+    [String(token), Number(memberId), String(expiresISO), 0]
+  );
+  await sendActivationEmail({ to: email, name: inviteName, token });
+  return token;
+}
+
+// Admin: send a fresh activation/reset link to an existing member
+app.post('/api/admin/members/:id/reset-invite', requireAdmin, async (req, res) => {
+  try {
+    const m = await pGet(`SELECT id, name, email FROM members WHERE id=?`, [req.params.id]);
+    if (!m) return res.status(404).json({ error: 'NOT_FOUND' });
+    const token = await issueInvite(m.id, m.name, m.email);
+    res.json({ ok: true, invite: token });
+  } catch (e) {
+    console.error('POST /api/admin/members/:id/reset-invite', e);
+    res.status(500).json({ error: 'DB_ERROR' });
   }
 });
 

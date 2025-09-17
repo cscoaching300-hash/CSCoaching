@@ -78,25 +78,38 @@
     try {
       const data = await api('/api/admin/members');
       const table = document.createElement('table');
-      table.className = 'table';
-      table.innerHTML = `
-        <tr><th>Name</th><th>Email</th><th>Credits</th><th>Actions</th></tr>
-      `;
-      data.members.forEach(m => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><input type="text" value="${m.name || ''}" class="in name" data-id="${m.id}"></td>
-          <td>${m.email}</td>
-          <td><input type="number" value="${m.credits}" class="in credits" data-id="${m.id}" min="0"></td>
-          <td>
-            <button class="btn sm save" data-id="${m.id}">Save</button>
-            <button class="btn sm danger del" data-id="${m.id}">Delete</button>
-          </td>
-        `;
-        table.appendChild(tr);
-      });
-      membersDiv.innerHTML = '';
-      membersDiv.appendChild(table);
+table.className = 'table';
+table.innerHTML = `
+  <tr>
+    <th>Name</th>
+    <th>Email</th>
+    <th>Credits</th>
+    <th>Paid</th>
+    <th>Actions</th>
+  </tr>
+`;
+
+data.members.forEach(m => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" value="${m.name || ''}" class="in name" data-id="${m.id}"></td>
+    <td>${m.email}</td>
+    <td><input type="number" value="${m.credits}" class="in credits" data-id="${m.id}" min="0"></td>
+    <td>
+      <button class="btn sm paid-toggle" data-id="${m.id}" data-paid="${m.paid ? 1 : 0}">
+        ${m.paid ? '✅ Paid' : '💸 To be Paid'}
+      </button>
+    </td>
+    <td>
+      <button class="btn sm save" data-id="${m.id}">Save</button>
+      <button class="btn sm outline reset" data-id="${m.id}">Send reset link</button>
+      <button class="btn sm danger del" data-id="${m.id}">Delete</button>
+    </td>
+  `;
+  table.appendChild(tr);
+});
+membersDiv.innerHTML = '';
+membersDiv.appendChild(table);
 
       table.querySelectorAll('.save').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -133,6 +146,53 @@
       membersMsg.textContent = warnFromError(e);
     }
   }
+
+// Paid toggle
+table.querySelectorAll('.paid-toggle').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.dataset.id;
+    const current = btn.dataset.paid === '1';
+    const next = !current;
+
+    // optimistic UI
+    btn.textContent = next ? '✅ Paid' : '💸 To be Paid';
+    btn.dataset.paid = next ? '1' : '0';
+
+    try {
+      await api(`/api/admin/members/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ paid: next })
+      });
+      membersMsg.textContent = 'Paid status updated ✓';
+      setTimeout(() => (membersMsg.textContent = ''), 1000);
+    } catch (e) {
+      // revert on error
+      btn.textContent = current ? '✅ Paid' : '💸 To be Paid';
+      btn.dataset.paid = current ? '1' : '0';
+      membersMsg.textContent = e.message;
+    }
+  });
+});
+
+// Send reset link
+table.querySelectorAll('.reset').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.dataset.id;
+    btn.disabled = true;
+    const old = btn.textContent;
+    btn.textContent = 'Sending…';
+    try {
+      await api(`/api/admin/members/${id}/reset-invite`, { method: 'POST' });
+      membersMsg.textContent = 'Reset link sent ✓';
+      setTimeout(() => (membersMsg.textContent = ''), 1200);
+    } catch (e) {
+      membersMsg.textContent = e.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = old;
+    }
+  });
+});
 
   $('#addMember').addEventListener('click', async () => {
     const name = $('#m_name').value.trim();
