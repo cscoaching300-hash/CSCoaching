@@ -11,12 +11,6 @@
   const keyMsg = $('#keyMsg');
   const maintainBtn = $('#maintainBtn');
   const maintainMsg = $('#maintainMsg');
-  const addName    = $('#newName');
-  const addEmail   = $('#newEmail');
-  const addCredits = $('#newCredits');
-  const addBtn     = $('#addMemberBtn');
-  const addMemberMsg = $('#addMemberMsg');
-
 
   // Load saved key
   const saved = localStorage.getItem('ADMIN_KEY') || '';
@@ -68,7 +62,6 @@
     return res.json();
   }
 
-
   function warnFromError(e) {
     if ((e.message || '').toUpperCase().includes('ADMIN_ONLY') || (e.message || '').includes('401')) {
       return 'Unauthorized. Enter your admin key above and click Save.';
@@ -76,32 +69,40 @@
     return e.message || 'Error';
   }
 
-  // ---------- Add Member (moved OUTSIDE loadMembers) ----------
-  addBtn?.addEventListener('click', async () => {
-    addMemberMsg.textContent = '';
-    const name = (addName?.value || '').trim();
-    const email = (addEmail?.value || '').trim().toLowerCase();
-    const credits = Number(addCredits?.value || 0);
+  // ---------- Add Member (bind AFTER DOM is ready) ----------
+  window.addEventListener('DOMContentLoaded', () => {
+    const addName       = $('#newName');
+    const addEmail      = $('#newEmail');
+    const addCredits    = $('#newCredits');
+    const addBtn        = $('#addMemberBtn');
+    const addMemberMsg  = $('#addMemberMsg');
 
-    if (!email) {
-      addMemberMsg.textContent = 'Email is required.';
-      return;
-    }
+    addBtn?.addEventListener('click', async () => {
+      addMemberMsg.textContent = '';
+      const name = (addName?.value || '').trim();
+      const email = (addEmail?.value || '').trim().toLowerCase();
+      const credits = Number(addCredits?.value || 0);
 
-    try {
-      const out = await api('/api/admin/members', {
-        method: 'POST',
-        body: JSON.stringify({ name: name || null, email, credits })
-      });
-      addMemberMsg.textContent = 'Member added ✓ (invite sent)';
-      addName.value = '';
-      addEmail.value = '';
-      addCredits.value = '0';
-      loadMembers(); // refresh the table
-    } catch (e) {
-      // Surfaces 401/ADMIN_ONLY, 409 EMAIL_ALREADY_EXISTS, etc.
-      addMemberMsg.textContent = warnFromError(e);
-    }
+      if (!email) {
+        addMemberMsg.textContent = 'Email is required.';
+        return;
+      }
+
+      try {
+        const out = await api('/api/admin/members', {
+          method: 'POST',
+          body: JSON.stringify({ name: name || null, email, credits })
+        });
+        addMemberMsg.textContent = 'Member added ✓ (invite sent)';
+        if (addName) addName.value = '';
+        if (addEmail) addEmail.value = '';
+        if (addCredits) addCredits.value = '0';
+        loadMembers(); // refresh the table
+      } catch (e) {
+        // Surfaces 401/ADMIN_ONLY, 409 EMAIL_ALREADY_EXISTS, etc.
+        addMemberMsg.textContent = warnFromError(e);
+      }
+    });
   });
 
   // ---------------- Members ----------------
@@ -147,8 +148,6 @@
 
       membersDiv.innerHTML = '';
       membersDiv.appendChild(table);
-
-      // --- wire actions (MUST be inside loadMembers so `table` is in scope) ---
 
       // Save name/credits
       table.querySelectorAll('.save').forEach(btn => {
@@ -209,8 +208,6 @@
           }
         });
       });
-
-      // (Add member handler was here before; now moved out)
 
       // Send reset link
       table.querySelectorAll('.reset').forEach(btn => {
@@ -327,7 +324,6 @@
     }
   });
 
-
   (function holidaysPanel(){
     const hDay  = document.getElementById('hDay');
     const hNote = document.getElementById('hNote');
@@ -393,8 +389,6 @@
 
     loadHolidays();
   })();
-
-
 
   // ---------------- Upcoming (booked) with actions ----------------
   let cachedSlots = []; // for move dropdowns
@@ -534,7 +528,6 @@
           }
         });
       });
-
 
     } catch (e) {
       upDiv.innerHTML = '';
