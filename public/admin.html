@@ -164,6 +164,32 @@
     </section>
   </main>
 
+<div class="row">
+  <label for="slotStart">Start (local)</label>
+  <input type="datetime-local" id="slotStart">
+
+  <label for="slotLocation">Location</label>
+  <input id="slotLocation" list="locList" placeholder="Hull / Scunthorpe / Shipley / …">
+  <datalist id="locList">
+    <option value="Hull"></option>
+    <option value="Scunthorpe"></option>
+    <option value="Shipley"></option>
+    <!-- add any others you use -->
+  </datalist>
+
+  <label for="slotDuration">Duration (mins)</label>
+  <input type="number" id="slotDuration" min="15" step="15" value="60">
+
+  <label style="display:inline-flex;gap:.5rem;align-items:center;margin-left:1rem">
+    <input type="checkbox" id="slotForce" checked>
+    Bypass day/hour rules
+  </label>
+
+  <button class="btn" id="addSlot">Add slot</button>
+  <span id="slotsMsg" class="muted"></span>
+</div>
+
+
   <script src="/js/admin.js" defer></script>
 </body>
 </html>

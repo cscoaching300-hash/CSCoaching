@@ -250,23 +250,47 @@ async function loadMembers() {
     }
   }
 
-  $('#addSlot').addEventListener('click', async () => {
-    const start = $('#slotStart').value;
-    const loc = $('#slotLocation').value;
-    if (!start) {
-      slotsMsg.textContent = 'Pick a start date/time';
-      return;
-    }
-    try {
-      const iso = new Date(start).toISOString();
-      await api('/api/admin/slots', { method: 'POST', body: JSON.stringify({ start_iso: iso, location: loc }) });
-      $('#slotStart').value = '';
-      loadSlots();
-      loadUpcoming();
-    } catch (e) {
-      slotsMsg.textContent = e.message;
-    }
-  });
+ $('#addSlot').addEventListener('click', async () => {
+  const start = $('#slotStart').value;
+  const loc = $('#slotLocation').value;
+  const dur = Number($('#slotDuration')?.value || 60);
+  const force = !!$('#slotForce')?.checked;
+
+  slotsMsg.textContent = '';
+  if (!start) {
+    slotsMsg.textContent = 'Pick a start date/time';
+    return;
+  }
+
+  try {
+    const iso = new Date(start).toISOString();
+    const url = '/api/admin/slots' + (force ? '?force=true' : '');
+    await api(url, {
+      method: 'POST',
+      body: JSON.stringify({
+        start_iso: iso,
+        location: loc || null,
+        duration_minutes: Number.isFinite(dur) && dur > 0 ? dur : 60
+      })
+    });
+
+    // reset & refresh
+    $('#slotStart').value = '';
+    // leave location/duration as convenience
+    loadSlots();
+    loadUpcoming();
+    slotsMsg.textContent = 'Slot added ✓';
+    setTimeout(() => (slotsMsg.textContent = ''), 1200);
+  } catch (e) {
+    // friendlier server error hints
+    const msg = (e.message || '').toUpperCase();
+    if (msg.includes('DAY_NOT_ALLOWED')) slotsMsg.textContent = 'Blocked by day rules — tick “Bypass rules”.';
+    else if (msg.includes('HOUR_NOT_ALLOWED')) slotsMsg.textContent = 'Blocked by hour rules — tick “Bypass rules”.';
+    else if (msg.includes('DUPLICATE_START')) slotsMsg.textContent = 'A slot with that start already exists.';
+    else slotsMsg.textContent = e.message || 'Error';
+  }
+});
+
 
 (function holidaysPanel(){
   const hDay  = document.getElementById('hDay');
