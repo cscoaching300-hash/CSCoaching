@@ -11,6 +11,12 @@
   const keyMsg = $('#keyMsg');
   const maintainBtn = $('#maintainBtn');
   const maintainMsg = $('#maintainMsg');
+  const addName    = $('#newName');
+  const addEmail   = $('#newEmail');
+  const addCredits = $('#newCredits');
+  const addBtn     = $('#addMemberBtn');
+  const addMemberMsg = $('#addMemberMsg');
+
 
   // Load saved key
   const saved = localStorage.getItem('ADMIN_KEY') || '';
@@ -29,38 +35,38 @@
   }
 
   async function api(path, opt = {}) {
-  const headers = Object.assign(
-    { 'Content-Type': 'application/json', 'X-ADMIN-KEY': adminKey() },
-    opt.headers || {}
-  );
+    const headers = Object.assign(
+      { 'Content-Type': 'application/json', 'X-ADMIN-KEY': adminKey() },
+      opt.headers || {}
+    );
 
-  const res = await fetch(path, Object.assign(opt, { headers }));
-  const ct = (res.headers.get('content-type') || '').toLowerCase();
+    const res = await fetch(path, Object.assign(opt, { headers }));
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
 
-  if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
-    if (ct.includes('application/json')) {
-      try {
-        const j = await res.json();
-        if (j && j.error) msg = j.error;
-      } catch {}
-    } else {
-      // Read text so we can hint what's going on (often <!doctype…)
-      const text = await res.text().catch(() => '');
-      if (text.startsWith('<!doctype') || text.startsWith('<html')) {
-        msg = `Non-JSON error (likely route/redirect): ${res.status}`;
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      if (ct.includes('application/json')) {
+        try {
+          const j = await res.json();
+          if (j && j.error) msg = j.error;
+        } catch {}
+      } else {
+        // Read text so we can hint what's going on (often <!doctype…)
+        const text = await res.text().catch(() => '');
+        if (text.startsWith('<!doctype') || text.startsWith('<html')) {
+          msg = `Non-JSON error (likely route/redirect): ${res.status}`;
+        }
       }
+      throw new Error(msg);
     }
-    throw new Error(msg);
-  }
 
-  if (!ct.includes('application/json')) {
-    const text = await res.text().catch(() => '');
-    throw new Error('Server returned non-JSON to ' + path + '. Check server logs.');
-  }
+    if (!ct.includes('application/json')) {
+      const text = await res.text().catch(() => '');
+      throw new Error('Server returned non-JSON to ' + path + '. Check server logs.');
+    }
 
-  return res.json();
-}
+    return res.json();
+  }
 
 
   function warnFromError(e) {
@@ -70,137 +76,167 @@
     return e.message || 'Error';
   }
 
-// ---------------- Members ----------------
-async function loadMembers() {
-  if (!membersDiv) return;
-  membersMsg.textContent = '';
-  membersDiv.innerHTML = '<div class="skel"></div>';
+  // ---------- Add Member (moved OUTSIDE loadMembers) ----------
+  addBtn?.addEventListener('click', async () => {
+    addMemberMsg.textContent = '';
+    const name = (addName?.value || '').trim();
+    const email = (addEmail?.value || '').trim().toLowerCase();
+    const credits = Number(addCredits?.value || 0);
 
-  try {
-    const data = await api('/api/admin/members');
+    if (!email) {
+      addMemberMsg.textContent = 'Email is required.';
+      return;
+    }
 
-    const table = document.createElement('table');
-    table.className = 'table';
-    table.innerHTML = `
-      <tr>
-        <th>Name</th>
-        <th>Email</th>
-        <th>Credits</th>
-        <th>Paid</th>
-        <th>Actions</th>
-      </tr>
-    `;
+    try {
+      const out = await api('/api/admin/members', {
+        method: 'POST',
+        body: JSON.stringify({ name: name || null, email, credits })
+      });
+      addMemberMsg.textContent = 'Member added ✓ (invite sent)';
+      addName.value = '';
+      addEmail.value = '';
+      addCredits.value = '0';
+      loadMembers(); // refresh the table
+    } catch (e) {
+      // Surfaces 401/ADMIN_ONLY, 409 EMAIL_ALREADY_EXISTS, etc.
+      addMemberMsg.textContent = warnFromError(e);
+    }
+  });
 
-    (data.members || []).forEach(m => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><input type="text" value="${m.name || ''}" class="in name" data-id="${m.id}"></td>
-        <td>${m.email}</td>
-        <td><input type="number" value="${m.credits}" class="in credits" data-id="${m.id}" min="0"></td>
-        <td>
-          <button class="btn sm paid-toggle" data-id="${m.id}" data-paid="${m.paid ? 1 : 0}">
-            ${m.paid ? '✅ Paid' : '💸 To be Paid'}
-          </button>
-        </td>
-        <td>
-          <button class="btn sm save" data-id="${m.id}">Save</button>
-          <button class="btn sm outline reset" data-id="${m.id}">Send reset link</button>
-          <button class="btn sm danger del" data-id="${m.id}">Delete</button>
-        </td>
+  // ---------------- Members ----------------
+  async function loadMembers() {
+    if (!membersDiv) return;
+    membersMsg.textContent = '';
+    membersDiv.innerHTML = '<div class="skel"></div>';
+
+    try {
+      const data = await api('/api/admin/members');
+
+      const table = document.createElement('table');
+      table.className = 'table';
+      table.innerHTML = `
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Credits</th>
+          <th>Paid</th>
+          <th>Actions</th>
+        </tr>
       `;
-      table.appendChild(tr);
-    });
 
-    membersDiv.innerHTML = '';
-    membersDiv.appendChild(table);
-
-    // --- wire actions (MUST be inside loadMembers so `table` is in scope) ---
-
-    // Save name/credits
-    table.querySelectorAll('.save').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.id;
-        const nameEl = table.querySelector(`.name[data-id="${id}"]`);
-        const credEl = table.querySelector(`.credits[data-id="${id}"]`);
-        try {
-          await api(`/api/admin/members/${id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ name: nameEl.value, credits: Number(credEl.value) })
-          });
-          membersMsg.textContent = 'Saved ✓';
-          setTimeout(() => (membersMsg.textContent = ''), 1000);
-        } catch (e) {
-          membersMsg.textContent = e.message;
-        }
+      (data.members || []).forEach(m => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><input type="text" value="${m.name || ''}" class="in name" data-id="${m.id}"></td>
+          <td>${m.email}</td>
+          <td><input type="number" value="${m.credits}" class="in credits" data-id="${m.id}" min="0"></td>
+          <td>
+            <button class="btn sm paid-toggle" data-id="${m.id}" data-paid="${m.paid ? 1 : 0}">
+              ${m.paid ? '✅ Paid' : '💸 To be Paid'}
+            </button>
+          </td>
+          <td>
+            <button class="btn sm save" data-id="${m.id}">Save</button>
+            <button class="btn sm outline reset" data-id="${m.id}">Send reset link</button>
+            <button class="btn sm danger del" data-id="${m.id}">Delete</button>
+          </td>
+        `;
+        table.appendChild(tr);
       });
-    });
 
-    // Delete
-    table.querySelectorAll('.del').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.id;
-        if (!confirm('Delete this member?')) return;
-        try {
-          await api(`/api/admin/members/${id}`, { method: 'DELETE' });
-          loadMembers();
-        } catch (e) {
-          membersMsg.textContent = e.message;
-        }
+      membersDiv.innerHTML = '';
+      membersDiv.appendChild(table);
+
+      // --- wire actions (MUST be inside loadMembers so `table` is in scope) ---
+
+      // Save name/credits
+      table.querySelectorAll('.save').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;
+          const nameEl = table.querySelector(`.name[data-id="${id}"]`);
+          const credEl = table.querySelector(`.credits[data-id="${id}"]`);
+          try {
+            await api(`/api/admin/members/${id}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ name: nameEl.value, credits: Number(credEl.value) })
+            });
+            membersMsg.textContent = 'Saved ✓';
+            setTimeout(() => (membersMsg.textContent = ''), 1000);
+          } catch (e) {
+            membersMsg.textContent = e.message;
+          }
+        });
       });
-    });
 
-    // Paid toggle
-    table.querySelectorAll('.paid-toggle').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.id;
-        const current = btn.dataset.paid === '1';
-        const next = !current;
-
-        // optimistic UI
-        btn.textContent = next ? '✅ Paid' : '💸 To be Paid';
-        btn.dataset.paid = next ? '1' : '0';
-
-        try {
-          await api(`/api/admin/members/${id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ paid: next })
-          });
-          membersMsg.textContent = 'Paid status updated ✓';
-          setTimeout(() => (membersMsg.textContent = ''), 1000);
-        } catch (e) {
-          // revert on error
-          btn.textContent = current ? '✅ Paid' : '💸 To be Paid';
-          btn.dataset.paid = current ? '1' : '0';
-          membersMsg.textContent = e.message;
-        }
+      // Delete
+      table.querySelectorAll('.del').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;
+          if (!confirm('Delete this member?')) return;
+          try {
+            await api(`/api/admin/members/${id}`, { method: 'DELETE' });
+            loadMembers();
+          } catch (e) {
+            membersMsg.textContent = e.message;
+          }
+        });
       });
-    });
 
-    // Send reset link
-    table.querySelectorAll('.reset').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.id;
-        btn.disabled = true;
-        const old = btn.textContent;
-        btn.textContent = 'Sending…';
-        try {
-          await api(`/api/admin/members/${id}/reset-invite`, { method: 'POST' });
-          membersMsg.textContent = 'Reset link sent ✓';
-          setTimeout(() => (membersMsg.textContent = ''), 1200);
-        } catch (e) {
-          membersMsg.textContent = e.message;
-        } finally {
-          btn.disabled = false;
-          btn.textContent = old;
-        }
+      // Paid toggle
+      table.querySelectorAll('.paid-toggle').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;
+          const current = btn.dataset.paid === '1';
+          const next = !current;
+
+          // optimistic UI
+          btn.textContent = next ? '✅ Paid' : '💸 To be Paid';
+          btn.dataset.paid = next ? '1' : '0';
+
+          try {
+            await api(`/api/admin/members/${id}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ paid: next })
+            });
+            membersMsg.textContent = 'Paid status updated ✓';
+            setTimeout(() => (membersMsg.textContent = ''), 1000);
+          } catch (e) {
+            // revert on error
+            btn.textContent = current ? '✅ Paid' : '💸 To be Paid';
+            btn.dataset.paid = current ? '1' : '0';
+            membersMsg.textContent = e.message;
+          }
+        });
       });
-    });
 
-  } catch (e) {
-    membersDiv.innerHTML = '';
-    membersMsg.textContent = warnFromError(e);
+      // (Add member handler was here before; now moved out)
+
+      // Send reset link
+      table.querySelectorAll('.reset').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;
+          btn.disabled = true;
+          const old = btn.textContent;
+          btn.textContent = 'Sending…';
+          try {
+            await api(`/api/admin/members/${id}/reset-invite`, { method: 'POST' });
+            membersMsg.textContent = 'Reset link sent ✓';
+            setTimeout(() => (membersMsg.textContent = ''), 1200);
+          } catch (e) {
+            membersMsg.textContent = e.message;
+          } finally {
+            btn.disabled = false;
+            btn.textContent = old;
+          }
+        });
+      });
+
+    } catch (e) {
+      membersDiv.innerHTML = '';
+      membersMsg.textContent = warnFromError(e);
+    }
   }
-}
 
   // ---------------- Slots ----------------
   async function loadSlots() {
@@ -250,113 +286,113 @@ async function loadMembers() {
     }
   }
 
- $('#addSlot').addEventListener('click', async () => {
-  const start = $('#slotStart').value;
-  const loc = $('#slotLocation').value;
-  const dur = Number($('#slotDuration')?.value || 60);
-  const force = !!$('#slotForce')?.checked;
+  $('#addSlot').addEventListener('click', async () => {
+    const start = $('#slotStart').value;
+    const loc = $('#slotLocation').value;
+    const dur = Number($('#slotDuration')?.value || 60);
+    const force = !!$('#slotForce')?.checked;
 
-  slotsMsg.textContent = '';
-  if (!start) {
-    slotsMsg.textContent = 'Pick a start date/time';
-    return;
-  }
+    slotsMsg.textContent = '';
+    if (!start) {
+      slotsMsg.textContent = 'Pick a start date/time';
+      return;
+    }
 
-  try {
-    const iso = new Date(start).toISOString();
-    const url = '/api/admin/slots' + (force ? '?force=true' : '');
-    await api(url, {
-      method: 'POST',
-      body: JSON.stringify({
-        start_iso: iso,
-        location: loc || null,
-        duration_minutes: Number.isFinite(dur) && dur > 0 ? dur : 60
-      })
+    try {
+      const iso = new Date(start).toISOString();
+      const url = '/api/admin/slots' + (force ? '?force=true' : '');
+      await api(url, {
+        method: 'POST',
+        body: JSON.stringify({
+          start_iso: iso,
+          location: loc || null,
+          duration_minutes: Number.isFinite(dur) && dur > 0 ? dur : 60
+        })
+      });
+
+      // reset & refresh
+      $('#slotStart').value = '';
+      // leave location/duration as convenience
+      loadSlots();
+      loadUpcoming();
+      slotsMsg.textContent = 'Slot added ✓';
+      setTimeout(() => (slotsMsg.textContent = ''), 1200);
+    } catch (e) {
+      // friendlier server error hints
+      const msg = (e.message || '').toUpperCase();
+      if (msg.includes('DAY_NOT_ALLOWED')) slotsMsg.textContent = 'Blocked by day rules — tick “Bypass rules”.';
+      else if (msg.includes('HOUR_NOT_ALLOWED')) slotsMsg.textContent = 'Blocked by hour rules — tick “Bypass rules”.';
+      else if (msg.includes('DUPLICATE_START')) slotsMsg.textContent = 'A slot with that start already exists.';
+      else slotsMsg.textContent = e.message || 'Error';
+    }
+  });
+
+
+  (function holidaysPanel(){
+    const hDay  = document.getElementById('hDay');
+    const hNote = document.getElementById('hNote');
+    const hAdd  = document.getElementById('hAdd');
+    const hDel  = document.getElementById('hDel');
+    const hMsg  = document.getElementById('hMsg');
+    const hTableBody = document.getElementById('hTable')?.querySelector('tbody');
+
+    async function loadHolidays(){
+      if (!hTableBody) return;
+      hTableBody.innerHTML = `<tr><td colspan="2">Loading…</td></tr>`;
+      try {
+        const j = await api('/api/admin/holidays');   // ← use api() so X-ADMIN-KEY is sent
+        const rows = j.holidays || [];
+        if (!rows.length) {
+          hTableBody.innerHTML = `<tr><td colspan="2" class="muted">No holidays</td></tr>`;
+          return;
+        }
+        hTableBody.innerHTML = '';
+        rows.forEach(h => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${h.day}</td><td>${h.note || ''}</td>`;
+          tr.addEventListener('click', () => {
+            hDay.value = h.day;
+            hNote.value = h.note || '';
+          });
+          hTableBody.appendChild(tr);
+        });
+      } catch (e) {
+        hTableBody.innerHTML = '';
+        hMsg.textContent = (e && e.message) || 'Error loading holidays';
+      }
+    }
+
+    hAdd?.addEventListener('click', async () => {
+      hMsg.textContent = '';
+      const day = (hDay.value || '').trim();
+      if (!day) { hMsg.textContent = 'Pick a date.'; return; }
+      try {
+        await api('/api/admin/holidays', {
+          method:'POST',
+          body: JSON.stringify({ day, note: hNote.value || '' })
+        });
+        hMsg.textContent = 'Saved.';
+        loadHolidays();
+      } catch (e) {
+        hMsg.textContent = (e && e.message) || 'Error';
+      }
     });
 
-    // reset & refresh
-    $('#slotStart').value = '';
-    // leave location/duration as convenience
-    loadSlots();
-    loadUpcoming();
-    slotsMsg.textContent = 'Slot added ✓';
-    setTimeout(() => (slotsMsg.textContent = ''), 1200);
-  } catch (e) {
-    // friendlier server error hints
-    const msg = (e.message || '').toUpperCase();
-    if (msg.includes('DAY_NOT_ALLOWED')) slotsMsg.textContent = 'Blocked by day rules — tick “Bypass rules”.';
-    else if (msg.includes('HOUR_NOT_ALLOWED')) slotsMsg.textContent = 'Blocked by hour rules — tick “Bypass rules”.';
-    else if (msg.includes('DUPLICATE_START')) slotsMsg.textContent = 'A slot with that start already exists.';
-    else slotsMsg.textContent = e.message || 'Error';
-  }
-});
-
-
-(function holidaysPanel(){
-  const hDay  = document.getElementById('hDay');
-  const hNote = document.getElementById('hNote');
-  const hAdd  = document.getElementById('hAdd');
-  const hDel  = document.getElementById('hDel');
-  const hMsg  = document.getElementById('hMsg');
-  const hTableBody = document.getElementById('hTable')?.querySelector('tbody');
-
-  async function loadHolidays(){
-    if (!hTableBody) return;
-    hTableBody.innerHTML = `<tr><td colspan="2">Loading…</td></tr>`;
-    try {
-      const j = await api('/api/admin/holidays');   // ← use api() so X-ADMIN-KEY is sent
-      const rows = j.holidays || [];
-      if (!rows.length) {
-        hTableBody.innerHTML = `<tr><td colspan="2" class="muted">No holidays</td></tr>`;
-        return;
+    hDel?.addEventListener('click', async () => {
+      hMsg.textContent = '';
+      const day = (hDay.value || '').trim();
+      if (!day) { hMsg.textContent = 'Pick a date to remove.'; return; }
+      try {
+        await api('/api/admin/holidays/' + encodeURIComponent(day), { method:'DELETE' });
+        hMsg.textContent = 'Removed.';
+        loadHolidays();
+      } catch (e) {
+        hMsg.textContent = (e && e.message) || 'Error';
       }
-      hTableBody.innerHTML = '';
-      rows.forEach(h => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${h.day}</td><td>${h.note || ''}</td>`;
-        tr.addEventListener('click', () => {
-          hDay.value = h.day;
-          hNote.value = h.note || '';
-        });
-        hTableBody.appendChild(tr);
-      });
-    } catch (e) {
-      hTableBody.innerHTML = '';
-      hMsg.textContent = (e && e.message) || 'Error loading holidays';
-    }
-  }
+    });
 
-  hAdd?.addEventListener('click', async () => {
-    hMsg.textContent = '';
-    const day = (hDay.value || '').trim();
-    if (!day) { hMsg.textContent = 'Pick a date.'; return; }
-    try {
-      await api('/api/admin/holidays', {
-        method:'POST',
-        body: JSON.stringify({ day, note: hNote.value || '' })
-      });
-      hMsg.textContent = 'Saved.';
-      loadHolidays();
-    } catch (e) {
-      hMsg.textContent = (e && e.message) || 'Error';
-    }
-  });
-
-  hDel?.addEventListener('click', async () => {
-    hMsg.textContent = '';
-    const day = (hDay.value || '').trim();
-    if (!day) { hMsg.textContent = 'Pick a date to remove.'; return; }
-    try {
-      await api('/api/admin/holidays/' + encodeURIComponent(day), { method:'DELETE' });
-      hMsg.textContent = 'Removed.';
-      loadHolidays();
-    } catch (e) {
-      hMsg.textContent = (e && e.message) || 'Error';
-    }
-  });
-
-  loadHolidays();
-})();
+    loadHolidays();
+  })();
 
 
 
@@ -460,44 +496,44 @@ async function loadMembers() {
       });
 
       // Wire actions
-table.querySelectorAll('.cancel').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const id = btn.dataset.id;                 // <-- this is booking_id (not slot id)
-    const refund = btn.dataset.refund === '1';
-    if (!confirm(refund ? 'Cancel and refund credit?' : 'Cancel without refund?')) return;
+      table.querySelectorAll('.cancel').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;                 // <-- this is booking_id (not slot id)
+          const refund = btn.dataset.refund === '1';
+          if (!confirm(refund ? 'Cancel and refund credit?' : 'Cancel without refund?')) return;
 
-    btn.disabled = true;
-    try {
-      // call manually so we can always include the admin key header and read the error body
-      const res = await fetch(`/api/admin/bookings/${id}/cancel?refund=${refund ? 'true' : 'false'}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-ADMIN-KEY': (localStorage.getItem('ADMIN_KEY') || '').trim(),
-        },
+          btn.disabled = true;
+          try {
+            // call manually so we can always include the admin key header and read the error body
+            const res = await fetch(`/api/admin/bookings/${id}/cancel?refund=${refund ? 'true' : 'false'}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-ADMIN-KEY': (localStorage.getItem('ADMIN_KEY') || '').trim(),
+              },
+            });
+            let body = {};
+            try { body = await res.json(); } catch {}
+            if (!res.ok) {
+              // Show the precise reason (e.g. ADMIN_ONLY, ALREADY_CANCELLED, NOT_FOUND)
+              const msg = body?.error || `HTTP ${res.status}`;
+              throw new Error(msg);
+            }
+
+            // Success
+            upMsg.textContent = body.refunded ? 'Cancelled + refund issued.' : 'Cancelled.';
+            setTimeout(() => (upMsg.textContent = ''), 1500);
+            loadSlots();
+            loadUpcoming();
+          } catch (e) {
+            upMsg.textContent = (e.message === 'ADMIN_ONLY')
+              ? 'Unauthorized. Enter your admin key above and click Save.'
+              : e.message || 'Error';
+          } finally {
+            btn.disabled = false;
+          }
+        });
       });
-      let body = {};
-      try { body = await res.json(); } catch {}
-      if (!res.ok) {
-        // Show the precise reason (e.g. ADMIN_ONLY, ALREADY_CANCELLED, NOT_FOUND)
-        const msg = body?.error || `HTTP ${res.status}`;
-        throw new Error(msg);
-      }
-
-      // Success
-      upMsg.textContent = body.refunded ? 'Cancelled + refund issued.' : 'Cancelled.';
-      setTimeout(() => (upMsg.textContent = ''), 1500);
-      loadSlots();
-      loadUpcoming();
-    } catch (e) {
-      upMsg.textContent = (e.message === 'ADMIN_ONLY')
-        ? 'Unauthorized. Enter your admin key above and click Save.'
-        : e.message || 'Error';
-    } finally {
-      btn.disabled = false;
-    }
-  });
-});
 
 
     } catch (e) {
