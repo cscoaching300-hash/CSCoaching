@@ -253,10 +253,6 @@ if (!list.length) {
     }
   });
 }
-
-}
-
-
       cell.appendChild(head);
       cell.appendChild(body);
       grid.appendChild(cell);
