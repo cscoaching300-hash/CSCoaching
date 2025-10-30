@@ -69,6 +69,90 @@
     return e.message || 'Error';
   }
 
+// Bind add-member buttons after DOM is ready (supports both UIs)
+window.addEventListener('DOMContentLoaded', () => {
+  const $ = (s, r = document) => r.querySelector(s);
+
+  const wireAdd = ({ btnId, nameId, emailId, creditsId, msgId }) => {
+    const btn = document.getElementById(btnId);
+    if (!btn) return; // this UI might not exist, that's fine
+
+    const nameEl    = document.getElementById(nameId);
+    const emailEl   = document.getElementById(emailId);
+    const creditsEl = document.getElementById(creditsId);
+    const msgEl     = document.getElementById(msgId);
+
+    btn.addEventListener('click', async () => {
+      if (msgEl) msgEl.textContent = '';
+      const name    = (nameEl?.value || '').trim();
+      const email   = (emailEl?.value || '').trim().toLowerCase();
+      const credits = Number(creditsEl?.value || 0);
+
+      if (!email) {
+        if (msgEl) msgEl.textContent = 'Email is required.';
+        return;
+      }
+
+      const oldText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Adding…';
+
+      try {
+        const res = await fetch('/api/admin/members', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-ADMIN-KEY': (localStorage.getItem('ADMIN_KEY') || '').trim(),
+          },
+          body: JSON.stringify({ name: name || null, email, credits })
+        });
+
+        let j = {};
+        try { j = await res.json(); } catch {}
+
+        if (!res.ok) {
+          const err = j?.error || `HTTP ${res.status}`;
+          if (msgEl) msgEl.textContent =
+            err === 'ADMIN_ONLY' ? 'Unauthorized. Enter your admin key above and click Save.'
+            : err;
+          return;
+        }
+        if (msgEl) msgEl.textContent = 'Member added ✓ (invite sent)';
+        if (nameEl) nameEl.value = '';
+        if (emailEl) emailEl.value = '';
+        if (creditsEl) creditsEl.value = '0';
+
+        // refresh members table if loadMembers() exists
+        try { typeof loadMembers === 'function' && loadMembers(); } catch {}
+      } catch (e) {
+        if (msgEl) msgEl.textContent = e?.message || 'Network error';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = oldText;
+      }
+    });
+  };
+
+  // New panel
+  wireAdd({
+    btnId: 'addMemberBtn',
+    nameId: 'newName',
+    emailId: 'newEmail',
+    creditsId: 'newCredits',
+    msgId: 'addMemberMsg'
+  });
+
+  // Older inline row
+  wireAdd({
+    btnId: 'addMember',
+    nameId: 'm_name',
+    emailId: 'm_email',
+    creditsId: 'm_credits',
+    msgId: 'membersMsg'
+  });
+});
+
+
   // ---------- Add Member (bind AFTER DOM is ready) ----------
   window.addEventListener('DOMContentLoaded', () => {
     const addName       = $('#newName');
