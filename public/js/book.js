@@ -226,42 +226,35 @@
       const body = document.createElement('div');
       body.className = 'cal-cell-body';
 
-      if (!list.length) {
-        body.innerHTML = `<div class="cal-empty">—</div>`;
-      } else {
-        if (s.is_booked) {
-  const tag = document.createElement('div');
-  tag.className = 'slot-chip booked';
-  // show ONLY the time + BOOKED (no location)
-  tag.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)} · BOOKED`;
-
-  // force red background for booked chips
-  tag.style.background = '#a61d1d';
-  tag.style.border = '1px solid #5f1212';
-  tag.style.color = '#fff';
-  tag.style.opacity = '1';
-
-  body.appendChild(tag);
+ if (!list.length) {
+  body.innerHTML = `<div class="cal-empty">—</div>`;
 } else {
-  // (leave your existing free-slot button branch exactly as-is)
-  const btn = document.createElement('button');
-  btn.className = 'slot-chip';
-  btn.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)}${s.location ? ` • ${s.location}` : ''}`;
-  btn.dataset.id = s.id;
-  if (selectedSlots.find((sel) => sel.id === s.id)) btn.classList.add('selected');
-  btn.addEventListener('click', () => toggleSlot(s, btn));
-  body.appendChild(btn);
+  list.forEach((s) => {
+    if (s.is_booked) {
+      const tag = document.createElement('div');
+      tag.className = 'slot-chip booked';
+      // show ONLY time + BOOKED
+      tag.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)} · BOOKED`;
+
+      // force red background
+      tag.style.background = '#a61d1d';
+      tag.style.border = '1px solid #5f1212';
+      tag.style.color = '#fff';
+      tag.style.opacity = '1';
+
+      body.appendChild(tag);
+    } else {
+      const btn = document.createElement('button');
+      btn.className = 'slot-chip';
+      btn.textContent = `${fmtTime(s.start_iso)}–${fmtTime(s.end_iso)}`;
+      btn.dataset.id = s.id;
+      if (selectedSlots.find((sel) => sel.id === s.id)) btn.classList.add('selected');
+      btn.addEventListener('click', () => toggleSlot(s, btn));
+      body.appendChild(btn);
+    }
+  });
 }
 
-
-            // reflect current selections
-            if (selectedSlots.find((sel) => sel.id === s.id)) btn.classList.add('selected');
-
-            btn.addEventListener('click', () => toggleSlot(s, btn));
-            body.appendChild(btn);
-          }
-        });
-      }
 
       cell.appendChild(head);
       cell.appendChild(body);
