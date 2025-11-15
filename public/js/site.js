@@ -46,6 +46,7 @@
         <ul class="cs-nav-links">
           <li class="nav-guest"><a href="/book.html">Book a session</a></li>
           <li class="nav-guest"><a href="/login.html">Login</a></li>
+	<li class="nav-guest"><a href="/prices.html">Prices</a></li>
           <li class="nav-authed" style="display:none"><a href="/dashboard.html">My bookings</a></li>
           <li class="nav-authed" style="display:none"><a id="logoutLink" href="#">Logout</a></li>
         </ul>
