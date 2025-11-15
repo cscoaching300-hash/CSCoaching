@@ -34,19 +34,21 @@
       width: 100%;
       border-collapse: collapse;
       font-size: 14px;
+      border: 1px solid #e02424; /* outer red frame */
     }
 
     .prices-table th,
     .prices-table td {
       padding: 10px 12px;
-      border-bottom: 1px solid #1a1a1a;
-      text-align: left;
+      border: 1px solid #e02424; /* red borders around every cell */
+      text-align: center;        /* centre-align all text */
     }
 
     .prices-table th {
-      background: #050506;
-      color: #f5f5f5;
+      background: #e02424;       /* theme red header */
+      color: #fdfdfd;
       font-weight: 600;
+      border-bottom: 1px solid #000; /* black line under header */
     }
 
     .prices-table td {
@@ -58,7 +60,6 @@
     }
 
     .prices-table .num {
-      text-align: right;
       white-space: nowrap;
     }
   </style>
@@ -133,16 +134,24 @@
         Bowlers are responsible for paying their own lane costs directly to the bowling centre.
       </p>
 
-      <!-- NEW: two buttons under the table -->
+      <!-- Action buttons -->
       <div style="margin-top:18px;display:flex;flex-wrap:wrap;gap:10px;">
-        <a href="/contact.html" class="btn secondary">
+        <button
+          type="button"
+          class="btn secondary"
+          onclick="window.location.href='/contact.html'">
           Contact Clare @ CSCoaching to purchase a package
-        </a>
-        <a href="/book.html" class="btn">
+        </button>
+
+        <button
+          type="button"
+          class="btn"
+          onclick="window.location.href='/book.html'">
           Book a session
-        </a>
+        </button>
       </div>
     </section>
   </main>
 </body>
 </html>
+
