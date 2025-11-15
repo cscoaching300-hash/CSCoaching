@@ -2,68 +2,75 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Prices | CSCoaching</title>
-
   <link rel="stylesheet" href="/style.css?v=20250823">
-  <link rel="icon" href="/favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-
   <script src="/js/site.js?v=2" defer></script>
 
   <style>
-    .prices-wrap {
-      max-width: 960px;
-      margin: 0 auto;
-    }
-
-    .prices-hero {
-      margin-bottom: 18px;
-    }
-
-    .prices-hero h1 {
-      margin: 0 0 6px;
-    }
-
-    .prices-hero .muted {
-      font-size: 14px;
-    }
-
+    /* Table styling */
     .prices-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 14px;
-      border: 1px solid #e02424; /* outer red frame */
-    }
-
-    .prices-table th,
-    .prices-table td {
-      padding: 10px 12px;
-      border: 1px solid #e02424; /* red borders around every cell */
-      text-align: center;        /* centre-align all text */
+      margin-top: 20px;
+      text-align: center;
     }
 
     .prices-table th {
-      background: #e02424;       /* theme red header */
-      color: #fdfdfd;
-      font-weight: 600;
-      border-bottom: 1px solid #000; /* black line under header */
+      background: #e02424; /* CSCoaching red */
+      color: #fff;
+      border: 2px solid #000;
+      padding: 12px;
+      font-size: 18px;
     }
 
     .prices-table td {
-      background: #141417;
+      padding: 14px;
+      border: 2px solid #e02424; /* red outline */
+      background: #111; /* deep theme background */
+      color: #fff;
+      font-size: 17px;
     }
 
-    .prices-table tr:nth-child(even) td {
-      background: #18181c;
+    /* Big red action buttons */
+    .prices-action-btn {
+      display: inline-block;
+      padding: 16px 26px;
+      font-size: 18px;
+      font-weight: 700;
+      border-radius: 8px;
+      background: #e02424;
+      border: 3px solid #000; 
+      color: white;
+      cursor: pointer;
+      transition: 0.2s ease-in-out;
+      text-align: center;
+      min-width: 280px;
     }
 
-    .prices-table .num {
-      white-space: nowrap;
+    .prices-action-btn:hover {
+      background: #000;
+      border-color: #e02424;
+      color: #fff;
+    }
+
+    @media (max-width: 600px) {
+      .prices-action-btn {
+        width: 100%;
+      }
+    }
+
+    .prices-note {
+      margin-top: 16px;
+      font-size: 15px;
+      color: #ccc;
+      text-align: center;
     }
   </style>
 </head>
+
 <body>
   <header>
     <nav class="cs-nav">
@@ -71,86 +78,78 @@
     </nav>
   </header>
 
-  <main class="wrap">
-    <section class="panel prices-wrap">
-      <div class="prices-hero">
-        <h1 class="h1">Coaching prices</h1>
-        <p class="muted">
-          One-to-one coaching packages. The more sessions you book, the lower the price per hour.
-        </p>
-      </div>
+  <main class="wrap" style="margin-top:20px;">
+    <h1 class="h1">Coaching Package Prices</h1>
 
-      <table class="prices-table">
-        <thead>
-          <tr>
-            <th>Package</th>
-            <th>Hours</th>
-            <th>Package Price</th>
-            <th>Price / Hour</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>None (pay-as-you-go)</td>
-            <td class="num">0</td>
-            <td class="num">—</td>
-            <td class="num">£35.00</td>
-          </tr>
-          <tr>
-            <td>Starter</td>
-            <td class="num">2</td>
-            <td class="num">£60.00</td>
-            <td class="num">£30.00</td>
-          </tr>
-          <tr>
-            <td>Bronze</td>
-            <td class="num">4</td>
-            <td class="num">£100.00</td>
-            <td class="num">£25.00</td>
-          </tr>
-          <tr>
-            <td>Silver</td>
-            <td class="num">6</td>
-            <td class="num">£125.00</td>
-            <td class="num">£20.83</td>
-          </tr>
-          <tr>
-            <td>Gold</td>
-            <td class="num">8</td>
-            <td class="num">£150.00</td>
-            <td class="num">£18.75</td>
-          </tr>
-          <tr>
-            <td>Platinum</td>
-            <td class="num">10</td>
-            <td class="num">£175.00</td>
-            <td class="num">£17.50</td>
-          </tr>
-        </tbody>
-      </table>
+    <table class="prices-table">
+      <thead>
+        <tr>
+          <th>Package</th>
+          <th>Hours</th>
+          <th>Package Price</th>
+          <th>Price / Hour</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>None (pay-as-you-go)</td>
+          <td>0</td>
+          <td>—</td>
+          <td>£35.00</td>
+        </tr>
+        <tr>
+          <td>Starter</td>
+          <td>2</td>
+          <td>£60.00</td>
+          <td>£30.00</td>
+        </tr>
+        <tr>
+          <td>Bronze</td>
+          <td>4</td>
+          <td>£100.00</td>
+          <td>£25.00</td>
+        </tr>
+        <tr>
+          <td>Silver</td>
+          <td>6</td>
+          <td>£125.00</td>
+          <td>£20.83</td>
+        </tr>
+        <tr>
+          <td>Gold</td>
+          <td>8</td>
+          <td>£150.00</td>
+          <td>£18.75</td>
+        </tr>
+        <tr>
+          <td>Platinum</td>
+          <td>10</td>
+          <td>£175.00</td>
+          <td>£17.50</td>
+        </tr>
+      </tbody>
+    </table>
 
-      <p class="muted" style="margin-top:12px;font-size:14px;">
-        <strong>Note:</strong> Prices shown do <em>not</em> include lane fees.
-        Bowlers are responsible for paying their own lane costs directly to the bowling centre.
-      </p>
+    <p class="prices-note">
+      <strong>Note:</strong> Prices shown are for coaching only and <strong>do not include lane fees</strong>.  
+      It is the bowler’s responsibility to pay for their own lane fees at the centre.
+    </p>
 
-      <!-- Action buttons -->
-      <div style="margin-top:18px;display:flex;flex-wrap:wrap;gap:10px;">
-        <button
-          type="button"
-          class="btn secondary"
-          onclick="window.location.href='/contact.html'">
-          Contact Clare @ CSCoaching to purchase a package
-        </button>
+    <div style="margin-top:28px;display:flex;flex-wrap:wrap;gap:18px;justify-content:center;">
+      <button
+        type="button"
+        class="prices-action-btn"
+        onclick="window.location.href='/contact.html'">
+        Contact Clare @ CSCoaching to purchase a package
+      </button>
 
-        <button
-          type="button"
-          class="btn"
-          onclick="window.location.href='/book.html'">
-          Book a session
-        </button>
-      </div>
-    </section>
+      <button
+        type="button"
+        class="prices-action-btn"
+        onclick="window.location.href='/book.html'">
+        Book a Session
+      </button>
+    </div>
   </main>
 </body>
 </html>
