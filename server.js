@@ -107,6 +107,21 @@ db.serialize(() => {
     day  TEXT PRIMARY KEY,   -- 'YYYY-MM-DD' in Europe/London
     note TEXT
   )`);
+ // 🔴 NEW: sale settings (single row, id=1)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS sale_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      active INTEGER NOT NULL DEFAULT 0,
+      name TEXT,
+      discount_percent INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+
+  db.run(`
+    INSERT INTO sale_settings (id, active, name, discount_percent)
+    VALUES (1, 0, NULL, 0)
+    ON CONFLICT(id) DO NOTHING
+  `);
 });
 
 // --- Ensure 'paid' column on members (0/1), idempotent ---
@@ -124,45 +139,13 @@ db.serialize(() => {
 })();
 
 
-/* ---------- Email (fail-open, pooled, timeouts, toggle) ---------- */
-const EMAIL_ON = String(process.env.EMAIL_ON ?? 'true').toLowerCase() === 'true';
-
-let transporter = null;
-if (EMAIL_ON) {
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: String(process.env.SMTP_SECURE ?? 'false').toLowerCase() === 'true', // true for 465
-    auth: (process.env.SMTP_USER && process.env.SMTP_PASS)
-      ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-      : undefined,
-    pool: true,
-    maxConnections: 3,
-    maxMessages: 50,
-    connectionTimeout: 8000, // ms
-    greetingTimeout: 6000,
-    socketTimeout: 10000,
-  });
-
-  // optional: log whether SMTP is reachable (non-fatal if it isn’t)
-  transporter.verify()
-    .then(() => console.log('[mail] transporter ready'))
-    .catch(e => console.error('[mail] verify failed (will fail-open):', e?.message || e));
-}
-
-async function safeSendMail(opts) {
-  if (!EMAIL_ON || !transporter) {
-    console.warn('[mail] skipped (EMAIL_ON=false or transporter not ready)');
-    return { ok: false, skipped: true };
-  }
-  try {
-    await transporter.sendMail(opts);
-    return { ok: true };
-  } catch (e) {
-    console.error('[mail] send failed (request not blocked):', e?.message || e);
-    return { ok: false, error: e };
-  }
-}
+/* ---------- Email ---------- */
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: Number(process.env.SMTP_PORT || 587),
+  secure: false,
+  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+});
 
 function customerHtml({ name, email, start_iso, end_iso, location, credits, hero }) {
   const when = whenLondon(start_iso, end_iso, true); // shows BST/GMT
@@ -208,23 +191,18 @@ function customerHtml({ name, email, start_iso, end_iso, location, credits, hero
 }
 
 async function sendCustomerEmail({ to, name, email, start_iso, end_iso, location, credits }) {
-  const heroPath = fs.existsSync(path.join(__dirname, 'public', 'logo.png'))
-    ? path.join(__dirname, 'public', 'logo.png')
-    : null;
-
-  return safeSendMail({
-    from: `"CSCoaching" <${process.env.SMTP_USER || 'no-reply@cscoaching.net'}>`,
-    to,
-    subject: '🎳 CSCoaching — Your session is confirmed',
+  const heroPath = fs.existsSync(path.join(__dirname, 'public', 'logo.png')) ? path.join(__dirname, 'public', 'logo.png') : null;
+  await transporter.sendMail({
+    from: `"CSCoaching" <${process.env.SMTP_USER}>`,
+    to, subject: '🎳 CSCoaching — Your session is confirmed',
     html: customerHtml({ name, email, start_iso, end_iso, location, credits, hero: !!heroPath }),
     attachments: heroPath ? [{ filename: 'logo.png', path: heroPath, cid: 'heroimg' }] : []
   });
 }
-
 async function sendAdminEmail({ start_iso, end_iso, location, name, email }) {
   const when = whenLondon(start_iso, end_iso, true);
-  return safeSendMail({
-    from: `"CSCoaching" <${process.env.SMTP_USER || 'no-reply@cscoaching.net'}>`,
+  await transporter.sendMail({
+    from: `"CSCoaching" <${process.env.SMTP_USER}>`,
     to: process.env.ADMIN_EMAIL || process.env.SMTP_USER,
     subject: '📩 New CSCoaching booking',
     text: `New booking
@@ -239,12 +217,24 @@ Location: ${location || ''}`
 async function sendActivationEmail({ to, name, token }) {
   const link = `${APP_BASE_URL}/activate.html?token=${encodeURIComponent(token)}`;
   const html = `<!doctype html><html><body style="font-family:Arial,Helvetica,sans-serif;background:#0f0f0f;color:#fff;padding:24px"><div style="max-width:560px;margin:0 auto;background:#101215;border:1px solid #1a1a1a;border-radius:12px;padding:20px"><h2 style="margin:0 0 12px">Welcome to CSCoaching</h2><p style="color:#cfcfcf">Hi ${name || to}, click below to set your password:</p><p style="margin:16px 0"><a href="${link}" style="background:#e02424;color:#fff;text-decoration:none;padding:10px 14px;border-radius:8px;display:inline-block">Activate your account</a></p><p style="color:#9a9a9a;font-size:12px">Or paste this link:<br>${link}</p></div></body></html>`;
-  return safeSendMail({
-    from: `"CSCoaching" <${process.env.SMTP_USER || 'no-reply@cscoaching.net'}>`,
-    to, subject: 'Activate your CSCoaching account', html
-  });
+  await transporter.sendMail({ from: `"CSCoaching" <${process.env.SMTP_USER}>`, to, subject: 'Activate your CSCoaching account', html });
 }
 
+async function sendZeroCreditsEmail({ member, slot }) {
+  const when = whenLondon(slot.start_iso, slot.end_iso, true); // uses your earlier helper
+  const text = `Heads up — ${member.name || member.email} now has 0 credits.
+
+Member: ${member.name || ''} <${member.email}>
+When:   ${when}
+Where:  ${slot.location || ''}`;
+
+  await transporter.sendMail({
+    from: `"CSCoaching" <${process.env.SMTP_USER}>`,
+    to: process.env.ADMIN_EMAIL || process.env.SMTP_USER,
+    subject: '⚠️ Member credits reached 0',
+    text,
+  });
+}
 async function sendZeroCreditsEmail({ member, slot }) {
   try {
     const s = new Date(slot.start_iso), e = new Date(slot.end_iso);
@@ -252,9 +242,9 @@ async function sendZeroCreditsEmail({ member, slot }) {
       weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
     })}, ${s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – ${e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
-    // member heads-up
-    await safeSendMail({
-      from: `"CSCoaching" <${process.env.SMTP_USER || 'no-reply@cscoaching.net'}>`,
+    // Notify the member
+    await transporter.sendMail({
+      from: `"CSCoaching" <${process.env.SMTP_USER}>`,
       to: member.email,
       subject: 'You’ve used your last CSCoaching session credit',
       text: `Hi ${member.name || member.email},
@@ -267,9 +257,9 @@ Reply to this email if you’d like to top up your credits, or message Clare dir
 — CSCoaching`,
     });
 
-    // admin ping
-    await safeSendMail({
-      from: `"CSCoaching" <${process.env.SMTP_USER || 'no-reply@cscoaching.net'}>`,
+    // Let the admin know too (optional but requested)
+    await transporter.sendMail({
+      from: `"CSCoaching" <${process.env.SMTP_USER}>`,
       to: process.env.ADMIN_EMAIL || process.env.SMTP_USER,
       subject: 'Member has hit 0 credits',
       text: `Member ${member.name || member.email} has just hit 0 credits after booking.
@@ -328,8 +318,29 @@ async function withTx(execFn) {
       try { await pRun('ROLLBACK'); } catch {}
       throw e;
     }
-  }
+ // ---------- Sale settings helpers ----------
+async function getSaleSettings() {
+  return pGet(
+    `SELECT active,
+            name,
+            discount_percent AS discountPercent
+       FROM sale_settings
+      WHERE id = 1`,
+    []
+  );
 }
+
+async function updateSaleSettings({ active, name, discountPercent }) {
+  await pRun(
+    `UPDATE sale_settings
+        SET active = ?,
+            name = ?,
+            discount_percent = ?
+      WHERE id = 1`,
+    [active ? 1 : 0, name || null, discountPercent || 0]
+  );
+}
+
 
 // Helper to read credits inside tx (works for both turso/local)
 async function txGetCredits(tRun, memberId) {
@@ -549,6 +560,32 @@ app.get('/api/slots', async (req, res) => {
   }
 });
 
+/* ---------- Public API: sale settings (for prices page) ---------- */
+app.get('/api/sale', async (_req, res) => {
+  try {
+    const row = await getSaleSettings().catch(() => null);
+    if (!row) {
+      return res.json({
+        ok: true,
+        sale: { active: false, name: '', discountPercent: 0 }
+      });
+    }
+
+    res.json({
+      ok: true,
+      sale: {
+        active: !!row.active,
+        name: row.name || '',
+        discountPercent: row.discountPercent || 0
+      }
+    });
+  } catch (e) {
+    console.error('GET /api/sale error:', e);
+    res.status(500).json({ error: 'SERVER_ERROR' });
+  }
+});
+
+
 /* ---------- Booking (must be a member with credits > 0) ---------- */
 app.post('/api/book', async (req, res) => {
   const slotId = Number(req.body?.slotId ?? req.body?.slot_id);
@@ -712,6 +749,53 @@ app.get('/api/member/bookings', requireMember, async (req, res) => {
 });
 
 /* ---------- Admin APIs ---------- */
+/* ADMIN: sale settings (name + discount) */
+app.get('/api/admin/sale', requireAdmin, async (_req, res) => {
+  try {
+    const row = await getSaleSettings().catch(() => null);
+    if (!row) {
+      return res.json({
+        ok: true,
+        sale: { active: false, name: '', discountPercent: 0 }
+      });
+    }
+
+    res.json({
+      ok: true,
+      sale: {
+        active: !!row.active,
+        name: row.name || '',
+        discountPercent: row.discountPercent || 0
+      }
+    });
+  } catch (e) {
+    console.error('GET /api/admin/sale error:', e);
+    res.status(500).json({ error: 'SERVER_ERROR' });
+  }
+});
+
+app.post('/api/admin/sale', requireAdmin, async (req, res) => {
+  try {
+    const { active, name, discountPercent } = req.body || {};
+
+    const pct = Number(discountPercent);
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+      return res.status(400).json({ error: 'BAD_DISCOUNT' });
+    }
+
+    await updateSaleSettings({
+      active: !!active,
+      name: (name || '').trim(),
+      discountPercent: pct
+    });
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('POST /api/admin/sale error:', e);
+    res.status(500).json({ error: 'SERVER_ERROR' });
+  }
+});
+
 /* ADMIN: upcoming bookings (future, exclude cancelled) */
 app.get('/api/admin/bookings', requireAdmin, async (_req, res) => {
   try {

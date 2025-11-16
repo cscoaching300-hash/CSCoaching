@@ -121,6 +121,35 @@
       <p class="muted" style="margin-top:10px;">Creates Mon–Thu evening slots for the next 14 days, and cleans past empty slots.</p>
     </section>
 
+<section class="card">
+  <h2>Sale / Promotion</h2>
+  <div class="row" style="gap:10px 12px; margin-bottom:8px; flex-wrap:wrap;">
+    <label style="display:flex;align-items:center;gap:6px;">
+      <input id="saleActive" type="checkbox">
+      Sale active
+    </label>
+
+    <input id="saleName" class="in" type="text"
+           placeholder="Sale name (e.g. Summer Offer)"
+           style="min-width:220px;">
+
+    <label>
+      Discount %
+      <input id="saleDiscount" class="in" type="number"
+             min="0" max="100" step="1" value="0"
+             style="width:90px;">
+    </label>
+
+    <button id="saleSave" class="btn sm">Save sale</button>
+    <span id="saleMsg" class="msg"></span>
+  </div>
+  <p class="muted" style="margin-top:4px;">
+    When active, the sale name and discounted package prices will appear
+    on the Prices page. Pay-as-you-go stays at the standard rate.
+  </p>
+</section>
+
+
     <!-- Add slot -->
     <section class="card">
       <h2>Add 1h slot</h2>

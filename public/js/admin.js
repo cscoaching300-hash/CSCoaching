@@ -474,6 +474,57 @@ window.addEventListener('DOMContentLoaded', () => {
     loadHolidays();
   })();
 
+// --- Sale / Promotion panel ---
+(function salePanel() {
+  const activeEl  = document.getElementById('saleActive');
+  const nameEl    = document.getElementById('saleName');
+  const discEl    = document.getElementById('saleDiscount');
+  const saveBtn   = document.getElementById('saleSave');
+  const msgEl     = document.getElementById('saleMsg');
+
+  if (!saveBtn) return; // not on this page
+
+  async function loadSale() {
+    msgEl.textContent = '';
+    try {
+      // Expecting something like: { sale: { active, name, discountPercent } }
+      const j = await api('/api/admin/sale');
+      const cfg = j.sale || j || {};
+
+      activeEl.checked = !!cfg.active;
+      nameEl.value = cfg.name || '';
+      const pct = cfg.discountPercent ?? cfg.discount_percent ?? 0;
+      discEl.value = Number.isFinite(Number(pct)) ? Number(pct) : 0;
+    } catch (e) {
+      msgEl.textContent = warnFromError(e);
+    }
+  }
+
+  saveBtn.addEventListener('click', async () => {
+    msgEl.textContent = '';
+
+    const body = {
+      active: !!activeEl.checked,
+      name: (nameEl.value || '').trim(),
+      discountPercent: Number(discEl.value || 0)
+    };
+
+    try {
+      await api('/api/admin/sale', {
+        method: 'POST',          // or PATCH – up to how you wire the server
+        body: JSON.stringify(body)
+      });
+      msgEl.textContent = 'Sale saved ✓';
+      setTimeout(() => (msgEl.textContent = ''), 1500);
+    } catch (e) {
+      msgEl.textContent = warnFromError(e);
+    }
+  });
+
+  loadSale();
+})();
+
+
   // ---------------- Upcoming (booked) with actions ----------------
   let cachedSlots = []; // for move dropdowns
 
