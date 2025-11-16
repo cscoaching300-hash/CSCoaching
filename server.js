@@ -111,8 +111,6 @@ function shouldTrackRequest(req) {
   return true;
 }
 
-}));
-
 app.use((req, res, next) => {
   // Wait until the response is done before logging
   res.on('finish', () => {
