@@ -524,6 +524,55 @@ window.addEventListener('DOMContentLoaded', () => {
   loadSale();
 })();
 
+async function loadStatsSummary() {
+  const key = localStorage.getItem('ADMIN_KEY') || ''; // or however you store it
+  const res = await fetch('/api/admin/stats/summary', {
+    headers: { 'X-ADMIN-KEY': key }
+  });
+
+  if (!res.ok) {
+    console.error('Failed to load stats', await res.text());
+    return;
+  }
+
+  const data = await res.json();
+  if (!data.ok) return;
+
+  // Summary
+  document.getElementById('stats-total').textContent = data.totalVisits;
+  document.getElementById('stats-active').textContent = data.activeNow;
+
+  // Top paths
+  const pathsTbody = document.getElementById('stats-paths');
+  pathsTbody.innerHTML = '';
+  data.byPath.forEach(row => {
+    const tr = document.createElement('tr');
+    const tdPath = document.createElement('td');
+    const tdCount = document.createElement('td');
+    tdPath.textContent = row.path;
+    tdCount.textContent = row.visits;
+    tr.appendChild(tdPath);
+    tr.appendChild(tdCount);
+    pathsTbody.appendChild(tr);
+  });
+
+  // Recent hits
+  const recentList = document.getElementById('stats-recent');
+  recentList.innerHTML = '';
+  data.recent.forEach(row => {
+    const li = document.createElement('li');
+    li.textContent = `${row.created_at} — ${row.path}`;
+    recentList.appendChild(li);
+  });
+}
+
+// call on admin page load
+document.addEventListener('DOMContentLoaded', () => {
+  // ...your other admin init...
+  loadStatsSummary().catch(console.error);
+});
+
+
 
   // ---------------- Upcoming (booked) with actions ----------------
   let cachedSlots = []; // for move dropdowns

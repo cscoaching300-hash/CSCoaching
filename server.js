@@ -95,6 +95,46 @@ app.use(session({
     secure: !!process.env.RENDER, // secure cookies on Render
     maxAge: 1000 * 60 * 60 * 24 * 14
   }
+
+// ---------- Page-view tracking middleware ----------
+function shouldTrackRequest(req) {
+  if (req.method !== 'GET') return false;
+
+  // Don’t track APIs
+  if (req.path.startsWith('/api')) return false;
+
+  // Don’t track static assets (.js, .css, images, etc.)
+  if (/\.(js|css|png|jpe?g|gif|svg|ico|webp|json|txt|map)$/i.test(req.path)) {
+    return false;
+  }
+
+  return true;
+}
+
+app.use((req, res, next) => {
+  // Wait until the response is done before logging
+  res.on('finish', () => {
+    try {
+      if (!shouldTrackRequest(req)) return;
+      if (res.statusCode >= 400) return; // ignore errors
+
+      const sessionId = req.session && req.session.id ? req.session.id : null;
+      const ua = req.headers['user-agent'] || null;
+
+      // fire-and-forget – don't await, so we never delay a response
+      pRun(
+        `INSERT INTO page_views (path, session_id, user_agent, created_at)
+         VALUES (?,?,?, datetime('now'))`,
+        [req.path, sessionId, ua]
+      ).catch(() => {});
+    } catch {
+      // never crash on analytics
+    }
+  });
+
+  next();
+});
+
 }));
 
 /* ---------- Table bootstrapping (idempotent) ---------- */
@@ -122,7 +162,21 @@ db.serialize(() => {
     VALUES (1, 0, NULL, 0)
     ON CONFLICT(id) DO NOTHING
   `);
+
+  // 🔍 Basic page-view analytics
+  db.run(`
+    CREATE TABLE IF NOT EXISTS page_views (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      path       TEXT NOT NULL,
+      session_id TEXT,
+      user_agent TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
 });
+
+
 
 // --- Ensure 'paid' column on members (0/1), idempotent ---
 (async () => {
@@ -751,6 +805,52 @@ app.get('/api/member/bookings', requireMember, async (req, res) => {
 });
 
 /* ---------- Admin APIs ---------- */
+/* ADMIN: basic page stats */
+app.get('/api/admin/stats/summary', requireAdmin, async (_req, res) => {
+  try {
+    const totalRow = await pGet(
+      `SELECT COUNT(*) AS cnt FROM page_views`,
+      []
+    );
+
+    const activeRow = await pGet(
+      `SELECT COUNT(DISTINCT session_id) AS active
+         FROM page_views
+        WHERE session_id IS NOT NULL
+          AND created_at >= datetime('now', '-5 minutes')`,
+      []
+    );
+
+    const byPath = await pAll(
+      `SELECT path, COUNT(*) AS visits
+         FROM page_views
+        GROUP BY path
+        ORDER BY visits DESC
+        LIMIT 20`,
+      []
+    );
+
+    const recent = await pAll(
+      `SELECT path, created_at
+         FROM page_views
+        ORDER BY datetime(created_at) DESC
+        LIMIT 50`,
+      []
+    );
+
+    res.json({
+      ok: true,
+      totalVisits: totalRow?.cnt || 0,
+      activeNow: activeRow?.active || 0,
+      byPath,
+      recent
+    });
+  } catch (e) {
+    console.error('GET /api/admin/stats/summary error:', e);
+    res.status(500).json({ error: 'DB_ERROR' });
+  }
+});
+
 /* ADMIN: sale settings (name + discount) */
 app.get('/api/admin/sale', requireAdmin, async (_req, res) => {
   try {
