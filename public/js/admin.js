@@ -524,6 +524,13 @@ window.addEventListener('DOMContentLoaded', () => {
   loadSale();
 })();
 
+}
+
+// call on admin page load
+document.addEventListener('DOMContentLoaded', () => {
+  // ...your other admin init...
+  loadStatsSummary().catch(console.error);
+});
 async function loadStatsSummary() {
   const key = localStorage.getItem('ADMIN_KEY') || ''; // or however you store it
   const res = await fetch('/api/admin/stats/summary', {
@@ -564,13 +571,6 @@ async function loadStatsSummary() {
     li.textContent = `${row.created_at} — ${row.path}`;
     recentList.appendChild(li);
   });
-}
-
-// call on admin page load
-document.addEventListener('DOMContentLoaded', () => {
-  // ...your other admin init...
-  loadStatsSummary().catch(console.error);
-});
 
 
 
