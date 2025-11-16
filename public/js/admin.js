@@ -525,7 +525,7 @@ window.addEventListener('DOMContentLoaded', () => {
 })();
 
 }
-
+}
 // call on admin page load
 document.addEventListener('DOMContentLoaded', () => {
   // ...your other admin init...
