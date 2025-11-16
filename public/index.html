@@ -92,58 +92,62 @@
 
     /* --- PHOTO TICKER CAROUSEL --- */
 
-    .home-carousel-container {
-      max-width: 1100px;
-      margin: 0 auto 48px;
-      padding: 0 16px 24px;
-    }
+ /* --- PHOTO TICKER CAROUSEL --- */
+.home-carousel-container {
+  max-width: 1100px;
+  margin: 0 auto 48px;
+  padding: 0 16px 24px;
+}
 
-    .home-carousel-shell {
-      background: #050505;
-      border-radius: 16px;
-      border: 1px solid #1b1c1f;
-      padding: 12px 12px;
-      overflow: hidden;
-    }
+.home-carousel-shell {
+  background: #050505;
+  border-radius: 16px;
+  border: 1px solid #1b1c1f;
+  padding: 12px 12px;
+  overflow: hidden;
+}
 
-    .home-carousel-track {
-      display: flex;
-      flex-wrap: nowrap;
-      gap: 8px;
-      animation: home-carousel-scroll 40s linear infinite;
-    }
+.home-carousel-track {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 20px; /* ← closer or wider spacing: try 10–20px */
+  animation: home-carousel-scroll 40s linear infinite;
+}
 
-    /* each slide is a fixed-height window; images scale to fit, no cropping */
-    .home-slide {
-      flex: 0 0 260px;          /* slide width */
-      height: 180px;            /* ticker height (same as before) */
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+/* Each slide has internal padding for identical spacing */
+.home-slide {
+  flex: 0 0 240px;  /* slide width */
+  height: 170px;    /* ticker height */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;     /* ← consistent spacing around every picture */
+  border-radius: 12px;
+  background: #0e0e0e; /* subtle, helps square-ish photos look centered */
+}
 
-    .home-slide img {
-      height: 100%;             /* all photos same height */
-      width: auto;              /* width adjusts to keep aspect ratio */
-      object-fit: contain;      /* no cropping */
-      display: block;
-      border-radius: 10px;
-    }
+.home-slide img {
+  height: 100%;
+  width: auto;
+  object-fit: contain;
+  border-radius: 8px;
+  display: block;
+}
 
-    /* ticker animation: moves through two copies of the list */
-    @keyframes home-carousel-scroll {
-      0%   { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
-    }
+/* ticker animation */
+@keyframes home-carousel-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
 
-    @media (max-width: 700px) {
-      .hero {
-        margin-top: 40px;
-      }
-      .home-slide {
-        flex: 0 0 200px;
-        height: 150px;
-      }
+@media (max-width: 700px) {
+  .home-slide {
+    flex: 0 0 200px;
+    height: 150px;
+    padding: 6px;
+  }
+}
+
     }
   </style>
 </head>
