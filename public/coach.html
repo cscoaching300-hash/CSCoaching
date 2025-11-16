@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Meet the Coach | CSCoaching</title>
+
+  <!-- Shared site styles + nav -->
+  <link rel="stylesheet" href="/style.css?v=20250823">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="/js/site.js?v=2" defer></script>
+
+  <style>
+    .coach-wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+
+    .coach-title {
+      font-size: 32px;
+      font-weight: 700;
+      margin: 0 0 6px;
+    }
+
+    .coach-sub {
+      margin: 0 0 20px;
+      font-size: 14px;
+      color: #b5b5b5;
+    }
+
+    .coach-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+      gap: 24px;
+      align-items: center;
+      background: #101214;
+      border-radius: 16px;
+      border: 1px solid #1b1c1f;
+      padding: 20px 20px 22px;
+    }
+
+    .coach-photo-wrap {
+      display: flex;
+      justify-content: center;
+    }
+
+    .coach-photo {
+      width: 100%;
+      max-width: 320px;
+      border-radius: 16px;
+      border: 2px solid #e02424;
+      object-fit: cover;
+      display: block;
+    }
+
+    .coach-meta-heading {
+      font-size: 14px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #ffb3b3;
+      margin: 0 0 8px;
+    }
+
+    .coach-name {
+      font-size: 24px;
+      font-weight: 700;
+      margin: 0 0 4px;
+    }
+
+    .coach-tagline {
+      font-size: 14px;
+      color: #c7c7cb;
+      margin: 0 0 16px;
+    }
+
+    .coach-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .coach-badge {
+      font-size: 12px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid #2a2b30;
+      background: #14161b;
+      color: #f5f5f5;
+      white-space: nowrap;
+    }
+
+    .coach-badge--highlight {
+      border-color: #e02424;
+      background: #1b0b0b;
+      color: #ffd5d5;
+    }
+
+    .coach-body {
+      margin-top: 22px;
+      font-size: 15px;
+      line-height: 1.7;
+      color: #e4e4e6;
+    }
+
+    .coach-body p {
+      margin: 0 0 14px;
+    }
+
+    .coach-body p:last-child {
+      margin-bottom: 0;
+    }
+
+    .coach-cta {
+      margin-top: 26px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .coach-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 20px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      background: #e02424;
+      color: #ffffff;
+      border: 2px solid #000000;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease,
+                  border-color 0.15s ease, transform 0.1s ease;
+      white-space: nowrap;
+    }
+
+    .coach-btn:hover,
+    .coach-btn:focus-visible {
+      background: #000000;
+      border-color: #e02424;
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+
+    .coach-btn--ghost {
+      background: #1b1c1f;
+      color: #ffffff;
+    }
+
+    .coach-btn--ghost:hover,
+    .coach-btn--ghost:focus-visible {
+      background: #000000;
+      border-color: #e02424;
+    }
+
+    @media (max-width: 840px) {
+      .coach-hero {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .coach-title {
+        font-size: 26px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Shared Navigation -->
+  <header>
+    <nav class="cs-nav">
+      <div id="nav-placeholder"></div>
+    </nav>
+  </header>
+
+  <main class="coach-wrap">
+    <h1 class="coach-title">Meet the Coach</h1>
+    <p class="coach-sub">
+      Learn more about the person behind CSCoaching and how coaching is tailored to fit the way you learn.
+    </p>
+
+    <section class="coach-hero">
+      <div class="coach-photo-wrap">
+        <!-- Update the src to match where you save the image -->
+        <img
+          src="/img/coach-profile.png"
+          alt="Clare from CSCoaching"
+          class="coach-photo"
+        />
+      </div>
+
+      <div>
+        <p class="coach-meta-heading">CSCoaching</p>
+        <h2 class="coach-name">Clare Louise Theaker-Shave</h2>
+        <p class="coach-tagline">
+          ETBF Level 3 coach • Neurodivergent-friendly coaching • Supporting bowlers from first steps to international level
+        </p>
+
+        <div class="coach-badges">
+          <span class="coach-badge coach-badge--highlight">ETBF Level 3 (first woman in the UK)</span>
+          <span class="coach-badge">Team England experience</span>
+          <span class="coach-badge">ADHD & proudly neurodivergent</span>
+          <span class="coach-badge">Chair – Ron Daly Trios & Yorkshire Juniors</span>
+        </div>
+
+        <div class="coach-body">
+          <p>
+            As the coach behind CSCoaching, I’ve spent the past seven-plus years helping bowlers develop
+            their skills, confidence, and understanding of the sport. I’m an ETBF Level 3 certified coach —
+            the first woman in the UK to achieve that level — and I work with athletes ranging from
+            absolute beginners to international competitors.
+          </p>
+          <p>
+            A key part of my coaching identity is being ADHD and proudly neurodivergent, which gives me a strong
+            personal understanding of how differently people learn, process information, and communicate.
+            Because of that, I make sure my coaching environment is genuinely neurodivergent-friendly:
+            flexible, patient, clear, and adaptable. Whether someone needs step-by-step demonstrations,
+            alternative explanations, or a bit more space to process, I shape my approach around what works for them.
+          </p>
+          <p>
+            My coaching style is grounded in solid fundamentals, straightforward communication, and a relaxed,
+            friendly atmosphere. I’m known for being approachable, supportive, and able to explain complex ideas
+            in a way that actually makes sense — with the occasional joke, because learning should feel good,
+            not stressful.
+          </p>
+          <p>
+            I currently coach across multiple bowling centres and work with more than 15 students each week,
+            tailoring sessions to individual goals and learning styles. I’ve also been part of Team England
+            coaching, supporting athletes at the European Youth Championships and national training events.
+            Watching the bowlers I work with achieve medals, rankings, and international opportunities is one of
+            the best parts of what I do.
+          </p>
+          <p>
+            Beyond coaching sessions, I’m involved in strengthening the wider bowling community as Chair of both
+            the Ron Daly Trios League and Yorkshire Juniors, working to create supportive spaces for bowlers of all ages.
+          </p>
+          <p>
+            My aim is simple: help every bowler understand their game, enjoy the process, and move forward with
+            confidence — in a way that genuinely suits them.
+          </p>
+          <p>
+            If you want coaching that’s structured, friendly, and adaptable to who you are, you’ll fit right in here.
+          </p>
+        </div>
+
+        <div class="coach-cta">
+          <a href="/prices.html" class="coach-btn">View coaching prices</a>
+          <a href="/book.html" class="coach-btn coach-btn--ghost">Book a session</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
