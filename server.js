@@ -318,6 +318,8 @@ async function withTx(execFn) {
       try { await pRun('ROLLBACK'); } catch {}
       throw e;
     }
+	}
+}
  // ---------- Sale settings helpers ----------
 async function getSaleSettings() {
   return pGet(
