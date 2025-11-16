@@ -113,20 +113,32 @@ function shouldTrackRequest(req) {
   return true;
 }
 
-app.use(async (req, res, next) => {
+function recordVisit(path, req) {
+  try {
+    const sessionId = req && req.session ? req.session.id : null;
+    const ua = req && req.headers ? (req.headers['user-agent'] || null) : null;
+
+    db.run(
+      `INSERT INTO page_views (path, session_id, user_agent, created_at)
+       VALUES (?,?,?, datetime('now'))`,
+      [path, sessionId, ua],
+      () => {}
+    );
+  } catch (e) {
+    console.error('recordVisit failed:', e);
+  }
+}
+
+app.use((req, res, next) => {
   const p = req.path.toLowerCase();
 
-  // 🚫 Ignore admin panel and admin API endpoints
   if (p.startsWith('/admin') || p.startsWith('/api/admin')) {
     return next();
   }
 
-  // Only track public pages
-  recordVisit(p);
-
+  recordVisit(p, req);
   next();
 });
-
 
 /* ---------- Table bootstrapping (idempotent) ---------- */
 db.serialize(() => {
@@ -330,7 +342,7 @@ const pAll = (sql, params = []) => new Promise((resolve, reject) =>
 async function withTx(execFn) {
   if (useTurso) {
     const tx = await tursoClient.transaction();
-    const tRun = (sql, params=[]) => tx.execute({ sql, args: params });
+    const tRun = (sql, params = []) => tx.execute({ sql, args: params });
     try {
       const out = await execFn({ tRun });
       await tx.commit();
@@ -343,7 +355,7 @@ async function withTx(execFn) {
     await pRun('BEGIN');
     try {
       const out = await execFn({
-        tRun: async (sql, params=[]) => pRun(sql, params)
+        tRun: async (sql, params = []) => pRun(sql, params)
       });
       await pRun('COMMIT');
       return out;
@@ -351,7 +363,10 @@ async function withTx(execFn) {
       try { await pRun('ROLLBACK'); } catch {}
       throw e;
     }
-	// --- Ensure 'paid' column on members (0/1), idempotent ---
+  }
+}
+
+// --- Ensure 'paid' column on members (0/1), idempotent ---
 (async () => {
   try {
     const cols = await pAll(`PRAGMA table_info(members)`);
