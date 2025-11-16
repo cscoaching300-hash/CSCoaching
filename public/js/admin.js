@@ -523,7 +523,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   loadSale();
 })();
-}
+
 // call on admin page load
 document.addEventListener('DOMContentLoaded', () => {
   // ...your other admin init...
@@ -560,7 +560,7 @@ async function loadStatsSummary() {
     tr.appendChild(tdCount);
     pathsTbody.appendChild(tr);
   });
-
+}
   // Recent hits
   const recentList = document.getElementById('stats-recent');
   recentList.innerHTML = '';
@@ -569,7 +569,8 @@ async function loadStatsSummary() {
     li.textContent = `${row.created_at} — ${row.path}`;
     recentList.appendChild(li);
   });
-
+ }
+}
 
 
   // ---------------- Upcoming (booked) with actions ----------------
