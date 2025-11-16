@@ -523,8 +523,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
   loadSale();
 })();
-
-}
 }
 // call on admin page load
 document.addEventListener('DOMContentLoaded', () => {
