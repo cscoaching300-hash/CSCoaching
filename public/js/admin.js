@@ -529,26 +529,19 @@
     const pathsTbody = document.getElementById('stats-paths');
     if (pathsTbody) {
       pathsTbody.innerHTML = '';
-      (data.byPath || []).forEach(row => {
-        const tr = document.createElement('tr');
-        const tdPath = document.createElement('td');
-        const tdCount = document.createElement('td');
-        tdPath.textContent = row.path;
-        tdCount.textContent = row.visits;
-        tr.appendChild(tdPath);
-        tr.appendChild(tdCount);
-        pathsTbody.appendChild(tr);
-      });
-    }
+      (data.byPath || [])
+  .filter(row => !row.path.startsWith('/admin'))   // ⬅ ignore admin pages
+  .forEach(row => {
+    const tr = document.createElement('tr');
+    const tdPath = document.createElement('td');
+    const tdCount = document.createElement('td');
+    tdPath.textContent = row.path;
+    tdCount.textContent = row.visits;
+    tr.appendChild(tdPath);
+    tr.appendChild(tdCount);
+    pathsTbody.appendChild(tr);
+  });
 
-    const recentList = document.getElementById('stats-recent');
-    if (recentList) {
-      recentList.innerHTML = '';
-      (data.recent || []).forEach(row => {
-        const li = document.createElement('li');
-        li.textContent = `${row.created_at} — ${row.path}`;
-        recentList.appendChild(li);
-      });
     }
   }
 
@@ -736,4 +729,5 @@
   });
 
 })();  // end IIFE
+
 
