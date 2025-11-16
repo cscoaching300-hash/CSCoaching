@@ -113,29 +113,20 @@ function shouldTrackRequest(req) {
   return true;
 }
 
-app.use((req, res, next) => {
-  // Wait until the response is done before logging
-  res.on('finish', () => {
-    try {
-      if (!shouldTrackRequest(req)) return;
-      if (res.statusCode >= 400) return; // ignore errors
+app.use(async (req, res, next) => {
+  const p = req.path.toLowerCase();
 
-      const sessionId = req.session && req.session.id ? req.session.id : null;
-      const ua = req.headers['user-agent'] || null;
+  // 🚫 Ignore admin panel and admin API endpoints
+  if (p.startsWith('/admin') || p.startsWith('/api/admin')) {
+    return next();
+  }
 
-      // fire-and-forget – don't await, so we never delay a response
-      pRun(
-        `INSERT INTO page_views (path, session_id, user_agent, created_at)
-         VALUES (?,?,?, datetime('now'))`,
-        [req.path, sessionId, ua]
-      ).catch(() => {});
-    } catch {
-      // never crash on analytics
-    }
-  });
+  // Only track public pages
+  recordVisit(p);
 
   next();
 });
+
 
 /* ---------- Table bootstrapping (idempotent) ---------- */
 db.serialize(() => {
