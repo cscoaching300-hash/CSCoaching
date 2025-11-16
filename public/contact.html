@@ -3,51 +3,294 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Contact | CSCoaching</title>
+  <title>Contact</title>
 
+  <!-- Shared site styles + nav -->
   <link rel="stylesheet" href="/style.css?v=20250823">
-  <link rel="icon" href="/favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-
   <script src="/js/site.js?v=2" defer></script>
+
+  <style>
+    .contact-wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+
+    .contact-title {
+      font-size: 32px;
+      font-weight: 700;
+      margin: 0 0 6px;
+    }
+
+    .contact-sub {
+      margin: 0 0 24px;
+      font-size: 15px;
+      color: #d0d0d0;
+    }
+
+    .contact-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+      gap: 24px;
+      background: #101214;
+      border-radius: 16px;
+      border: 1px solid #1b1c1f;
+      padding: 22px 22px 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .contact-hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-top: 4px solid #e02424;
+      pointer-events: none;
+    }
+
+    .contact-hero-main {
+      position: relative;
+      z-index: 1;
+    }
+
+    .contact-hero-heading {
+      font-size: 24px;
+      font-weight: 700;
+      margin: 0 0 10px;
+    }
+
+    .contact-hero-text {
+      font-size: 15px;
+      color: #c5c5c8;
+      margin: 0 0 16px;
+    }
+
+    .contact-hero-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      font-size: 14px;
+      color: #bcbcc0;
+    }
+
+    .contact-hero-list li {
+      margin-bottom: 6px;
+    }
+
+    .contact-hero-highlight {
+      color: #ffd5d5;
+      font-weight: 600;
+    }
+
+    .contact-panels {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 14px;
+    }
+
+    .contact-card {
+      background: #121419;
+      border-radius: 14px;
+      border: 1px solid #26272d;
+      padding: 14px 14px 16px;
+    }
+
+    .contact-card-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0 0 4px;
+    }
+
+    .contact-card-detail {
+      font-size: 14px;
+      margin: 0 0 10px;
+      color: #f7f7f8;
+    }
+
+    .contact-card-detail a {
+      color: #ffcf66;
+      text-decoration: none;
+    }
+
+    .contact-card-detail a:hover {
+      text-decoration: underline;
+    }
+
+    .contact-card-note {
+      font-size: 12px;
+      color: #a3a3a6;
+      margin: 0 0 10px;
+    }
+
+    .contact-btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .contact-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 20px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      background: #e02424;
+      color: #ffffff;
+      border: 2px solid #000000;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease,
+                  border-color 0.15s ease, transform 0.1s ease;
+      white-space: nowrap;
+    }
+
+    .contact-btn:hover,
+    .contact-btn:focus-visible {
+      background: #000000;
+      border-color: #e02424;
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+
+    .contact-btn--ghost {
+      background: #1b1c1f;
+      border-color: #000000;
+    }
+
+    .contact-btn--ghost:hover,
+    .contact-btn--ghost:focus-visible {
+      background: #000000;
+      border-color: #e02424;
+    }
+
+    .contact-book-panel {
+      margin-top: 26px;
+      background: #101214;
+      border-radius: 16px;
+      border: 1px solid #1b1c1f;
+      padding: 18px 18px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      justify-content: space-between;
+    }
+
+    .contact-book-text {
+      font-size: 15px;
+      color: #d4d4d6;
+      margin: 0;
+    }
+
+    .contact-hint {
+      margin-top: 12px;
+      font-size: 13px;
+      color: #a4a4a7;
+    }
+
+    @media (max-width: 880px) {
+      .contact-hero {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .contact-title {
+        font-size: 26px;
+      }
+    }
+  </style>
 </head>
 <body>
+  <!-- Shared Navigation -->
   <header>
     <nav class="cs-nav">
       <div id="nav-placeholder"></div>
     </nav>
   </header>
 
-  <main class="wrap">
-    <section class="panel" style="max-width:720px;margin:0 auto;">
-      <h1 class="h1">Contact Clare @ CSCoaching</h1>
-      <p class="muted" style="margin-bottom:14px;">
-        Got questions about packages, availability, or what’s right for you? Get in touch:
-      </p>
+  <main class="contact-wrap">
+    <h1 class="contact-title">Contact Clare @ CSCoaching</h1>
+    <p class="contact-sub">
+      Got questions about packages, availability, or what kind of coaching would suit you best?
+      Reach out using any of the options below.
+    </p>
 
-      <div style="display:flex;flex-direction:column;gap:14px;margin-top:8px;font-size:15px;">
-        <div>
-          <strong>WhatsApp</strong><br>
-          <a href="https://wa.me/447867129873" target="_blank" rel="noopener"
-             style="color:#ffd56b;text-decoration:none;">
-            07867&nbsp;129&nbsp;873
-          </a>
-        </div>
-
-        <div>
-          <strong>Facebook Messenger</strong><br>
-          <a href="https://facebook.com/CLShave" target="_blank" rel="noopener"
-             style="color:#ffd56b;text-decoration:none;">
-            facebook.com/CLShave
-          </a>
-        </div>
+    <section class="contact-hero">
+      <div class="contact-hero-main">
+        <h2 class="contact-hero-heading">Let’s talk about your bowling.</h2>
+        <p class="contact-hero-text">
+          Whether you’re brand new to coaching, looking to fine-tune your game, or planning support
+          for a full season, we can chat through what you need and build something that fits you.
+        </p>
+        <ul class="contact-hero-list">
+          <li><span class="contact-hero-highlight">•</span> Ask about package options and pricing</li>
+          <li><span class="contact-hero-highlight">•</span> Check availability across centres</li>
+          <li><span class="contact-hero-highlight">•</span> Talk through goals, access needs, or competition plans</li>
+        </ul>
+        <p class="contact-hint">
+          Messages are usually replied to as soon as possible around coaching hours.
+        </p>
       </div>
 
-      <p class="muted" style="margin-top:20px;font-size:14px;">
-        If you already have credits or a package, you can head straight to the booking page:
+      <div class="contact-panels">
+        <!-- WhatsApp card -->
+        <article class="contact-card">
+          <h3 class="contact-card-title">WhatsApp</h3>
+          <p class="contact-card-detail">
+            <strong>07867 129 873</strong>
+          </p>
+          <p class="contact-card-note">
+            Best for quick questions, checking availability, or sharing videos of your shot for feedback.
+          </p>
+          <div class="contact-btn-row">
+            <a
+              class="contact-btn"
+              href="https://wa.me/447867129873"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Message on WhatsApp
+            </a>
+          </div>
+        </article>
+
+        <!-- Facebook Messenger card -->
+        <article class="contact-card">
+          <h3 class="contact-card-title">Facebook Messenger</h3>
+          <p class="contact-card-detail">
+            <a href="https://facebook.com/CLShave" target="_blank" rel="noreferrer">
+              facebook.com/CLShave
+            </a>
+          </p>
+          <p class="contact-card-note">
+            Ideal if you already follow CSCoaching or prefer to keep everything in Messenger.
+          </p>
+          <div class="contact-btn-row">
+            <a
+              class="contact-btn contact-btn--ghost"
+              href="https://facebook.com/CLShave"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open Messenger page
+            </a>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- Booking panel -->
+    <section class="contact-book-panel">
+      <p class="contact-book-text">
+        Already have credits or a coaching package set up? You can head straight to the booking page.
       </p>
-      <a href="/book.html" class="btn">Book a session</a>
+      <a href="/book.html" class="contact-btn">
+        Book a session
+      </a>
     </section>
   </main>
 </body>
