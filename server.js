@@ -80,6 +80,7 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+
 /* ---------- Sessions ---------- */
 let sessionStore = new session.MemoryStore(); // Render free = memory only
 app.use(session({
@@ -95,6 +96,7 @@ app.use(session({
     secure: !!process.env.RENDER, // secure cookies on Render
     maxAge: 1000 * 60 * 60 * 24 * 14
   }
+}));
 
 // ---------- Page-view tracking middleware ----------
 function shouldTrackRequest(req) {
