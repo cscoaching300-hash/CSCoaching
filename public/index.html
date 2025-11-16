@@ -12,6 +12,7 @@
   <!-- Shared nav + carousel script (no inline JS, CSP-safe) -->
   <script src="/js/site.js?v=2" defer></script>
   <script src="/js/home-carousel.js?v=1" defer></script>
+<script src="/js/testimonials.js?v=1" defer></script>
 
   <style>
     body {
@@ -220,6 +221,38 @@
       color: #c7c7cb;
       margin: 2px 0 0;
     }
+/* --- Testimonial "read more" button --- */
+.testimonial-more-btn {
+  margin-top: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #2a2b30;
+  background: #15161a;
+  color: #ffb3b3;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.testimonial-more-btn:hover,
+.testimonial-more-btn:focus-visible {
+  background: #e02424;
+  color: #ffffff;
+  border-color: #000000;
+}
+
+.testimonial-more-btn[data-expanded="true"]::after {
+  content: "▲";
+  font-size: 10px;
+}
+
+.testimonial-more-btn[data-expanded="false"]::after {
+  content: "▼";
+  font-size: 10px;
+}
   </style>
 </head>
 <body>
