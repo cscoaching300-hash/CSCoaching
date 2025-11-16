@@ -164,53 +164,11 @@
   </div>
 
   <!-- Ticker-style photo carousel -->
-  <section class="home-carousel" aria-label="Coaching photos">
-    <div class="home-carousel-window">
-      <div class="home-carousel-track" id="homeCarouselTrack"></div>
-    </div>
-  </section>
+<section class="home-carousel" aria-label="Coaching photos">
+  <div class="home-carousel-window">
+    <div class="home-carousel-track" id="homeCarouselTrack"></div>
+  </div>
+</section>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const track = document.getElementById('homeCarouselTrack');
-      if (!track) return;
-
-      // 🔧 Add or change filenames here (folder: public/img/home/)
-      const images = [
-        '/img/home/photo1.jpg',
-        '/img/home/photo2.jpg',
-        '/img/home/photo3.jpg',
-        '/img/home/photo4.jpg'
-      ];
-
-      // Build one set of slides
-      images.forEach(src => {
-        const slide = document.createElement('div');
-        slide.className = 'home-slide';
-
-        const img = document.createElement('img');
-        img.src = src;
-        img.alt = '';
-
-        slide.appendChild(img);
-        track.appendChild(slide);
-      });
-
-      // Duplicate the slides once so the ticker can loop smoothly
-      track.innerHTML += track.innerHTML;
-
-      // Respect reduced motion preferences
-      const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-      const applyMotionPreference = () => {
-        if (mq.matches) {
-          track.classList.add('no-animate');
-        } else {
-          track.classList.remove('no-animate');
-        }
-      };
-      applyMotionPreference();
-      mq.addEventListener('change', applyMotionPreference);
-    });
-  </script>
 </body>
 </html>

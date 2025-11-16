@@ -54,3 +54,49 @@
     await setAuthVisibility();
   }
 })();
+
+// ----------------------
+// Home Page Carousel
+// ----------------------
+document.addEventListener('DOMContentLoaded', () => {
+  const track = document.getElementById('homeCarouselTrack');
+  if (!track) return; // not on home page
+
+  // 🔧 Add or rename images here — folder: public/img/home/
+  const images = [
+    '/img/home/photo1.jpg',
+    '/img/home/photo2.jpg',
+    '/img/home/photo3.jpg',
+    '/img/home/photo4.jpg'
+  ];
+
+  // Build slide list once
+  images.forEach(src => {
+    const slide = document.createElement('div');
+    slide.className = 'home-slide';
+
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = '';
+
+    slide.appendChild(img);
+    track.appendChild(slide);
+  });
+
+  // Duplicate slides for smooth looping
+  track.innerHTML += track.innerHTML;
+
+  // Reduce motion support
+  const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const applyMotionPreference = () => {
+    if (mq.matches) {
+      track.classList.add('no-animate');
+    } else {
+      track.classList.remove('no-animate');
+    }
+  };
+
+  applyMotionPreference();
+  mq.addEventListener('change', applyMotionPreference);
+});
+
