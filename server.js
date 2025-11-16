@@ -129,16 +129,56 @@ function recordVisit(path, req) {
   }
 }
 
-app.use((req, res, next) => {
+// ---------- Page-view tracking helpers ----------
+function shouldTrackRequest(req) {
+  if (req.method !== 'GET') return false;
+
   const p = req.path.toLowerCase();
 
-  if (p.startsWith('/admin') || p.startsWith('/api/admin')) {
-    return next();
+  // Ignore APIs
+  if (p.startsWith('/api')) return false;
+
+  // Ignore admin panel and admin assets
+  if (p.startsWith('/admin')) return false;
+
+  // Ignore static assets
+  if (/\.(js|css|png|jpe?g|gif|svg|ico|webp|json|txt|map)$/i.test(p)) {
+    return false;
   }
 
-  recordVisit(p, req);
+  return true;
+}
+
+function recordVisit(req) {
+  try {
+    const path = req.path;
+    const sessionId = req.sessionID || null;   // ✅ stable session id
+    const ua = req.headers['user-agent'] || null;
+
+    db.run(
+      `INSERT INTO page_views (path, session_id, user_agent, created_at)
+       VALUES (?,?,?, datetime('now'))`,
+      [path, sessionId, ua],
+      () => {}
+    );
+  } catch (e) {
+    console.error('recordVisit failed:', e);
+  }
+}
+
+app.use((req, res, next) => {
+  res.on('finish', () => {
+    try {
+      if (!shouldTrackRequest(req)) return;
+      if (res.statusCode >= 400) return;
+      recordVisit(req);
+    } catch {
+      // never crash on analytics
+    }
+  });
   next();
 });
+
 
 /* ---------- Table bootstrapping (idempotent) ---------- */
 db.serialize(() => {
