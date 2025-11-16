@@ -96,56 +96,61 @@
     }
 
     /* --- PHOTO TICKER CAROUSEL --- */
-    .home-carousel-container {
-      max-width: 1100px;
-      margin: 0 auto 48px;
-      padding: 0 16px 24px;
-    }
+    * Carousel shell */
+.home-carousel-shell {
+  margin-top: 32px;
+  padding: 16px 0 32px;
+}
 
-    .home-carousel-shell {
-      background: #050505;
-      border-radius: 16px;
-      border: 1px solid #1b1c1f;
-      padding: 12px 12px;
-      overflow: hidden;
-    }
+.home-carousel {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid #202126;
+  background: radial-gradient(circle at top left, #191919, #050505);
+  overflow: hidden;
+}
 
-    .home-carousel-track {
-      display: flex;
-      flex-wrap: nowrap;
-      gap: 20px; /* spacing between photos */
-      animation: home-carousel-scroll 20s linear infinite;
-    }
+/* Inner + track */
+.home-carousel-inner {
+  overflow: hidden;
+}
 
-    .home-slide {
-      flex: 0 0 240px;  /* slide width */
-      height: 170px;    /* ticker height */
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 8px;     /* consistent spacing around each image */
-      border-radius: 12px;
-      background: #0e0e0e;
-    }
+.home-track {
+  display: flex;
+  gap: 24px;                 /* distance between photos */
+  align-items: center;
+  width: max-content;        /* track width = sum of slides */
+  animation: home-scroll 20s linear infinite;
+}
 
-    .home-slide img {
-      height: 100%;
-      width: auto;
-      object-fit: contain; /* don’t crop */
-      border-radius: 8px;
-      display: block;
-    }
+/* Slides */
+.home-slide {
+  flex: 0 0 auto;
+  width: 260px;
+  height: 200px;             /* same as before-ish */
+  border-radius: 16px;
+  overflow: hidden;
+  background: #050505;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
-    @keyframes home-carousel-scroll {
-      0%   { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
-    }
+/* Images: never cropped, all same height window */
+.home-slide img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;       /* no cropping */
+  display: block;
+}
 
-    @media (max-width: 700px) {
-      .home-slide {
-        flex: 0 0 200px;
-        height: 150px;
-        padding: 6px;
+/* Seamless ticker: move one full "copy" of the track */
+@keyframes home-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
       }
     }
 

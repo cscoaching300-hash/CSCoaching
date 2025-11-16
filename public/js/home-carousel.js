@@ -3,16 +3,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const track = document.getElementById('homeCarouselTrack');
   if (!track) return;
 
-  // 1) List your home images here (add/remove as needed)
-  const imagePaths = [
-    '/img/home/home1.jpg',
-    '/img/home/home2.jpg',
-    '/img/home/home3.jpg',
-    '/img/home/home4.jpg'
-    // add more: '/img/home/home5.jpg', ...
-  ];
+  // 👉 Set how many home images you have:
+  //    /public/img/home/home1.jpg ... homeN.jpg
+  const IMAGE_COUNT = 12; // change this when you add more
 
-  // 2) Shuffle once for random order
+  // Build the list automatically: ['/img/home/home1.jpg', ...]
+  const imagePaths = [];
+  for (let i = 1; i <= IMAGE_COUNT; i++) {
+    imagePaths.push(`/img/home/home${i}.jpg`);
+  }
+
+  // Shuffle once for random order on each page load
   function shuffle(arr) {
     const a = [...arr];
     for (let i = a.length - 1; i > 0; i--) {
@@ -24,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const shuffled = shuffle(imagePaths);
 
-  // 3) Helper to add a set of slides to the track
+  // Helper to add a set of slides to the track
   function addSlides(list) {
     list.forEach((src) => {
       const slide = document.createElement('div');
@@ -39,7 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 4) Add two identical sets for seamless looping
-  addSlides(shuffled);  // first set
-  addSlides(shuffled);  // second set
+  // Add two identical sets so the ticker can loop seamlessly
+  addSlides(shuffled);  // first set (random order)
+  addSlides(shuffled);  // second set (same order for seamless loop)
 });
+
