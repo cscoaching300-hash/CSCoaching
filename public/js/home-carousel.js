@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 👉 Set how many home images you have:
   //    /public/img/home/home1.jpg ... homeN.jpg
-  const IMAGE_COUNT = 12; // change this when you add more
+  const IMAGE_COUNT = 14; // change this when you add more
 
   // Build the list automatically: ['/img/home/home1.jpg', ...]
   const imagePaths = [];
