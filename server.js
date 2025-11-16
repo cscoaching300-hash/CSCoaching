@@ -169,19 +169,6 @@ db.serialize(() => {
 
 
 
-// --- Ensure 'paid' column on members (0/1), idempotent ---
-(async () => {
-  try {
-    const cols = await pAll(`PRAGMA table_info(members)`);
-    const hasPaid = (cols || []).some(c => String(c.name).toLowerCase() === 'paid');
-    if (!hasPaid) {
-      await pRun(`ALTER TABLE members ADD COLUMN paid INTEGER NOT NULL DEFAULT 0`);
-      console.log('[migrate] members.paid added');
-    }
-  } catch (e) {
-    console.error('[migrate] paid column check/add failed:', e);
-  }
-})();
 
 
 /* ---------- Email ---------- */
@@ -338,6 +325,7 @@ const pAll = (sql, params = []) => new Promise((resolve, reject) =>
   db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows))
 );
 
+
 // Transaction wrapper that uses Turso's tx API in prod and BEGIN/COMMIT locally
 async function withTx(execFn) {
   if (useTurso) {
@@ -363,8 +351,20 @@ async function withTx(execFn) {
       try { await pRun('ROLLBACK'); } catch {}
       throw e;
     }
-	}
-}
+	// --- Ensure 'paid' column on members (0/1), idempotent ---
+(async () => {
+  try {
+    const cols = await pAll(`PRAGMA table_info(members)`);
+    const hasPaid = (cols || []).some(c => String(c.name).toLowerCase() === 'paid');
+    if (!hasPaid) {
+      await pRun(`ALTER TABLE members ADD COLUMN paid INTEGER NOT NULL DEFAULT 0`);
+      console.log('[migrate] members.paid added');
+    }
+  } catch (e) {
+    console.error('[migrate] paid column check/add failed:', e);
+  }
+})();
+
  // ---------- Sale settings helpers ----------
 async function getSaleSettings() {
   return pGet(
