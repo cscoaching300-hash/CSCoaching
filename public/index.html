@@ -9,8 +9,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="/js/site.js?v=2" defer></script>
-  <!-- NEW: carousel script -->
-  <script src="/js/home-carousel.js?v=1" defer></script>
 
   <style>
     body {
@@ -20,50 +18,10 @@
       color: #eee;
     }
 
-    .hero {
-      max-width: 1000px;
-      margin: 64px auto;
-      text-align: center;
-      padding: 0 16px;
-    }
-
-    .hero img {
-      max-width: 560px;
-      width: 90%;
-      height: auto;
-      border-radius: 12px;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, .4);
-    }
-
-    .hero h1 {
-      margin: 20px 0 10px;
-      font-size: 32px;
-    }
-
-    .hero p {
-      color: #bdbdbd;
-      margin: 0 0 24px;
-    }
-
-    .cta {
-      display: inline-block;
-      padding: 12px 18px;
-      background: #e02424;
-      color: #fff;
-      border-radius: 10px;
-      text-decoration: none;
-      font-weight: 700;
-    }
-
-    .cta:hover {
-      filter: brightness(1.08);
-    }
-
     .cs-nav {
       background: #000;
       border-bottom: 1px solid #1d1e22;
     }
-
     .cs-nav-inner {
       max-width: 1100px;
       margin: 0 auto;
@@ -72,13 +30,11 @@
       align-items: center;
       justify-content: space-between;
     }
-
     .cs-brand {
       color: #fff;
       font-weight: 700;
       letter-spacing: .5px;
     }
-
     .cs-nav-links {
       list-style: none;
       display: flex;
@@ -86,53 +42,108 @@
       margin: 0;
       padding: 0;
     }
-
     .cs-nav-links a {
       color: #e8e8e8;
       text-decoration: none;
     }
-
     .cs-nav-links a:hover {
       color: #fff;
     }
 
-    /* ---------- Carousel styles ---------- */
-    .hero-carousel {
-      margin-top: 32px;
+    .hero {
+      max-width: 1000px;
+      margin: 64px auto 24px;
+      text-align: center;
+      padding: 0 16px;
+    }
+    .hero img {
+      max-width: 560px;
+      width: 90%;
+      height: auto;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,.4);
+    }
+    .hero h1 {
+      margin: 20px 0 10px;
+      font-size: 32px;
+    }
+    .hero p {
+      color: #bdbdbd;
+      margin: 0 0 24px;
+    }
+    .cta {
+      display: inline-block;
+      padding: 12px 18px;
+      background: #e02424;
+      color: #fff;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 700;
+      border: 2px solid #000;
+    }
+    .cta:hover {
+      filter: brightness(1.08);
     }
 
-    .home-carousel-inner {
+    /* ---------- Carousel ---------- */
+    .home-carousel {
       max-width: 1000px;
-      margin: 0 auto;
+      margin: 0 auto 40px;
+      padding: 0 16px;
+    }
+
+    .home-carousel-window {
       overflow: hidden;
-      border-radius: 12px;
+      position: relative;
+      border-radius: 14px;
       border: 1px solid #1d1e22;
       background: #050506;
     }
 
     .home-carousel-track {
       display: flex;
-      gap: 0;
-      overflow-x: auto;
-      scroll-behavior: smooth;
-      scrollbar-width: none;          /* Firefox */
-    }
-
-    .home-carousel-track::-webkit-scrollbar {
-      display: none;                  /* Chrome/Safari */
+      gap: 16px;
+      padding: 12px 16px;
+      animation: homeCarouselScroll 45s linear infinite;
     }
 
     .home-slide {
-      flex: 0 0 100%;
-      min-width: 100%;
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .home-slide img {
+      height: 160px;
+      max-height: 160px;
+      width: auto;
       display: block;
-      width: 100%;
-      height: 100%;
-      max-height: 420px;
-      object-fit: cover;
+      border-radius: 10px;
+      box-shadow: 0 4px 18px rgba(0,0,0,.5);
+
+      /* show full image, no cropping */
+      object-fit: contain;
+      background: #000;
+    }
+
+    @keyframes homeCarouselScroll {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    .home-carousel-track.no-animate {
+      animation: none;
+    }
+
+    @media (max-width: 640px) {
+      .hero {
+        margin-top: 40px;
+      }
+      .home-slide img {
+        height: 130px;
+        max-height: 130px;
+      }
     }
   </style>
 </head>
@@ -144,22 +155,62 @@
     </nav>
   </header>
 
-  <!-- Simple hero -->
+  <!-- Hero -->
   <div class="hero">
     <img src="/logo.png" alt="CSCoaching">
     <h1>Train. Strike. Repeat.</h1>
     <p>Personalised coaching sessions in Scunthorpe, Hull &amp; Shipley.</p>
     <a class="cta" href="/book.html">Book a session</a>
-
-    <!-- NEW: photo carousel (no text) -->
-    <div class="hero-carousel" id="homeCarouselWrapper">
-      <div class="home-carousel-inner">
-        <div class="home-carousel-track" id="homeCarouselTrack"></div>
-      </div>
-    </div>
   </div>
+
+  <!-- Ticker-style photo carousel -->
+  <section class="home-carousel" aria-label="Coaching photos">
+    <div class="home-carousel-window">
+      <div class="home-carousel-track" id="homeCarouselTrack"></div>
+    </div>
+  </section>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const track = document.getElementById('homeCarouselTrack');
+      if (!track) return;
+
+      // 🔧 Add or change filenames here (folder: public/img/home/)
+      const images = [
+        '/img/home/photo1.jpg',
+        '/img/home/photo2.jpg',
+        '/img/home/photo3.jpg',
+        '/img/home/photo4.jpg'
+      ];
+
+      // Build one set of slides
+      images.forEach(src => {
+        const slide = document.createElement('div');
+        slide.className = 'home-slide';
+
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = '';
+
+        slide.appendChild(img);
+        track.appendChild(slide);
+      });
+
+      // Duplicate the slides once so the ticker can loop smoothly
+      track.innerHTML += track.innerHTML;
+
+      // Respect reduced motion preferences
+      const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const applyMotionPreference = () => {
+        if (mq.matches) {
+          track.classList.add('no-animate');
+        } else {
+          track.classList.remove('no-animate');
+        }
+      };
+      applyMotionPreference();
+      mq.addEventListener('change', applyMotionPreference);
+    });
+  </script>
 </body>
 </html>
-
-
-
