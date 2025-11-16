@@ -96,62 +96,59 @@
     }
 
     /* --- PHOTO TICKER CAROUSEL --- */
-    * Carousel shell */
-.home-carousel-shell {
-  margin-top: 32px;
-  padding: 16px 0 32px;
-}
+    .home-carousel-shell {
+      margin-top: 32px;
+      padding: 16px 0 32px;
+    }
 
-.home-carousel {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 16px;
-  border-radius: 18px;
-  border: 1px solid #202126;
-  background: radial-gradient(circle at top left, #191919, #050505);
-  overflow: hidden;
-}
+    .home-carousel {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid #202126;
+      background: radial-gradient(circle at top left, #191919, #050505);
+      overflow: hidden;
+    }
 
-/* Inner + track */
-.home-carousel-inner {
-  overflow: hidden;
-}
+    .home-carousel-inner {
+      overflow: hidden;
+    }
 
-.home-track {
-  display: flex;
-  gap: 24px;                 /* distance between photos */
-  align-items: center;
-  width: max-content;        /* track width = sum of slides */
-  animation: home-scroll 20s linear infinite;
-}
+    /* Track that scrolls */
+    .home-carousel-track {
+      display: flex;
+      gap: 24px;                 /* consistent spacing between images */
+      align-items: center;
+      width: max-content;        /* track width = total width of slides */
+      animation: home-scroll 45s linear infinite;
+    }
 
-/* Slides */
-.home-slide {
-  flex: 0 0 auto;
-  width: 260px;
-  height: 200px;             /* same as before-ish */
-  border-radius: 16px;
-  overflow: hidden;
-  background: #050505;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+    /* Each slide window */
+    .home-slide {
+      flex: 0 0 auto;
+      width: 260px;
+      height: 200px;             /* same visual height for all */
+      border-radius: 16px;
+      overflow: hidden;
+      background: #050505;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
-/* Images: never cropped, all same height window */
-.home-slide img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;       /* no cropping */
-  display: block;
-}
+    /* Images: no cropping, fit inside the window */
+    .home-slide img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display: block;
+    }
 
-/* Seamless ticker: move one full "copy" of the track */
-@keyframes home-scroll {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-      }
+    /* Seamless ticker */
+    @keyframes home-scroll {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
     }
 
     /* --- TESTIMONIALS SECTION --- */
@@ -242,10 +239,12 @@
   </div>
 
   <!-- PHOTO CAROUSEL (images loaded by /js/home-carousel.js) -->
-  <section class="home-carousel-container">
-    <div class="home-carousel-shell">
-      <div class="home-carousel-track" id="homeCarouselTrack">
-        <!-- Slides are injected here by home-carousel.js -->
+  <section class="home-carousel-shell">
+    <div class="home-carousel">
+      <div class="home-carousel-inner">
+        <div id="homeCarouselTrack" class="home-carousel-track">
+          <!-- Slides are injected here by home-carousel.js -->
+        </div>
       </div>
     </div>
   </section>
@@ -260,10 +259,9 @@
     </div>
 
     <div class="home-testimonials-grid">
-      <!-- You can edit or replace these quotes whenever you like -->
       <article class="testimonial-card">
         <p class="testimonial-quote">
-          "I’ve been asked to do a review for CSCoaching where to start well I only started coaching with Clare during the summer when I rocked up to her summer coaching sessions at Shipley she was welcoming, friendly and we have good banter but she defo knows how to tell you off too 😂 I started to bowl and Clare was very honest with me about my two handed bowling at this point I was falling out of love with the sport that I love so we transitioned to one handed little did I know that a couple of months later I would be taking home 1st in the under 22s at Washington I do what I do to make myself and my coach proud 😏🎳🏆"
+          I’ve been asked to do a review for CSCoaching where to start well I only started coaching with Clare during the summer when I rocked up to her summer coaching sessions at Shipley she was welcoming, friendly and we have good banter but she defo knows how to tell you off too 😂 I started to bowl and Clare was very honest with me about my two handed bowling at this point I was falling out of love with the sport that I love so we transitioned to one handed little did I know that a couple of months later I would be taking home 1st in the under 22s at Washington I do what I do to make myself and my coach proud 😏🎳🏆
         </p>
         <p class="testimonial-name">Rex Bowling</p>
         <p class="testimonial-role">Aspiring PBA Bowler</p>
@@ -271,7 +269,7 @@
 
       <article class="testimonial-card">
         <p class="testimonial-quote">
-          “I have been with Clare at CSCoaching for nearly 3 years and I have loved working with her to improve my game, actually, rebuild my game. For someone who bowled for fun for so many years, never having had any professional coaching, it was a big step, going back to basics and building on this. I am a senior bowler and bad habits are hard to shake when you have been doing them for so long, but with Clare’s knowledge, she has found ways to help me and if something didn’t work, change it and try again, but I trust Clare and this is important to my continuing improvement. She has given me the confidence to push myself and I am still learning.”
+          I have been with Clare at CSCoaching for nearly 3 years and I have loved working with her to improve my game, actually, rebuild my game. For someone who bowled for fun for so many years, never having had any professional coaching, it was a big step, going back to basics and building on this. I am a senior bowler and bad habits are hard to shake when you have been doing them for so long, but with Clare’s knowledge, she has found ways to help me and if something didn’t work, change it and try again, but I trust Clare and this is important to my continuing improvement. She has given me the confidence to push myself and I am still learning.
         </p>
         <p class="testimonial-name">Sally Thorley</p>
         <p class="testimonial-role">Senior Ladies Yorkshire Bowler</p>
@@ -281,9 +279,9 @@
         <p class="testimonial-quote">
           I’ve been with CSCoaching since the very beginning, for the last 7 years since Clare started coaching me back in 2018. Straight away you were able to tell Clare knew what she was on about. This amazing coach took me under her wing at the age of 11, and worked with me through the hard times and many breakdowns during bowling to get me to be the best I can be; and through her constant support I managed to claim 3 County Titles and win 3 European medals, and now I’m sat in the States while writing this, continuing with my dream of becoming a professional bowler.
 
-Clare is very patient and will work with you to find something that will work for you. She’s a Level 3 European Coach and one of the best in England — in my opinion one of the best in Europe. Clare will explain why you are doing what you are doing and will explain why things are happening, making sure you understand and can see all these things happening for yourself. This is something I’m so happy I have been taught, so I can see these things happening when Clare is not there. Being able to notice all these little things helps make a bowler a better bowler.
+          Clare is very patient and will work with you to find something that will work for you. She’s a Level 3 European Coach and one of the best in England — in my opinion one of the best in Europe. Clare will explain why you are doing what you are doing and will explain why things are happening, making sure you understand and can see all these things happening for yourself. This is something I’m so happy I have been taught, so I can see these things happening when Clare is not there. Being able to notice all these little things helps make a bowler a better bowler.
 
-Clare’s a very firm but fair coach. If you’re having a bit of an off day/week, she will make coaching more fun but still teach you the things you need to do, for example doing scotch doubles with you so you can practise your spares. She will do anything she can so that you enjoy your coaching that little bit more, and will always try her hardest to find ways for you to improve and enjoy the sport of bowling.
+          Clare’s a very firm but fair coach. If you’re having a bit of an off day/week, she will make coaching more fun but still teach you the things you need to do, for example doing scotch doubles with you so you can practise your spares. She will do anything she can so that you enjoy your coaching that little bit more, and will always try her hardest to find ways for you to improve and enjoy the sport of bowling.
         </p>
         <p class="testimonial-name">Avan Rhodes</p>
         <p class="testimonial-role">McKendree Collegiate / International Bowler</p>
@@ -292,3 +290,4 @@ Clare’s a very firm but fair coach. If you’re having a bit of an off day/wee
   </section>
 </body>
 </html>
+
