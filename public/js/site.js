@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 🔢 Set how many photos you have in /public/img/home/
   //   Expecting files named: home1.jpg, home2.jpg, …, homeN.jpg
-  const TOTAL_HOME_PHOTOS = 14; // <-- change this number when you add/remove photos
+  const TOTAL_HOME_PHOTOS = 18; // <-- change this number when you add/remove photos
 
   const images = [];
   for (let i = 1; i <= TOTAL_HOME_PHOTOS; i++) {
