@@ -544,7 +544,7 @@ async function loadStatsSummary() {
 
   const data = await res.json();
   if (!data.ok) return;
-
+}
   // Summary
   document.getElementById('stats-total').textContent = data.totalVisits;
   document.getElementById('stats-active').textContent = data.activeNow;
